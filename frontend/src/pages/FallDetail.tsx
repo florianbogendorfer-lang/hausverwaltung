@@ -10,9 +10,12 @@ import {
   FileSearch,
   Gauge,
   Info,
+  Pencil,
+  PlayCircle,
   Sparkles,
   UserRound,
   Wrench,
+  X,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,11 +29,14 @@ import type {
   Fall,
   FallStatus,
   Freigabe,
+  Gewerk,
   Kontakt,
   Nachricht,
   Objekt,
   Trace,
 } from "../types";
+
+const GEWERK_OPTIONEN: Gewerk[] = ["schlosser", "maurer", "installateur", "elektriker", "sonstiges"];
 
 // UI-3 — Fall-Detail (§10): „Was ist Sache, was muss ich tun". Reihenfolge
 // folgt bewusst progressive disclosure — zuerst die Handlungsanweisung in
@@ -54,6 +60,16 @@ export default function FallDetail() {
   const [kontakt, setKontakt] = useState<Kontakt | null>(null);
   const [dienstleister, setDienstleister] = useState<Dienstleister | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
+
+  const [alleObjekte, setAlleObjekte] = useState<Objekt[]>([]);
+  const [alleKontakte, setAlleKontakte] = useState<Kontakt[]>([]);
+  const [alleDienstleister, setAlleDienstleister] = useState<Dienstleister[]>([]);
+
+  useEffect(() => {
+    api.get<Objekt[]>("/objekte").then(setAlleObjekte).catch(() => undefined);
+    api.get<Kontakt[]>("/kontakte").then(setAlleKontakte).catch(() => undefined);
+    api.get<Dienstleister[]>("/dienstleister").then(setAlleDienstleister).catch(() => undefined);
+  }, []);
 
   const laden = useCallback(async () => {
     if (!fallId) return;
@@ -141,26 +157,21 @@ export default function FallDetail() {
       )}
 
       <section className="mb-6">
-        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-400">
-          <FileSearch size={14} /> Ermittelte Informationen
-        </h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <InfoKarte
-            icon={Building2}
-            titel="Objekt"
-            wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "noch nicht ermittelt"}
-          />
-          <InfoKarte
-            icon={UserRound}
-            titel="Melder"
-            wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "noch nicht ermittelt"}
-          />
-          <InfoKarte
-            icon={Wrench}
-            titel="Dienstleister"
-            wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "noch nicht ermittelt"}
-          />
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <FileSearch size={14} /> Ermittelte Informationen
+          </h3>
         </div>
+        <ManuelleZuordnung
+          fall={fall}
+          objekt={objekt}
+          kontakt={kontakt}
+          dienstleister={dienstleister}
+          alleObjekte={alleObjekte}
+          alleKontakte={alleKontakte}
+          alleDienstleister={alleDienstleister}
+          onGespeichert={laden}
+        />
         {fall.zusammenfassung && (
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -288,6 +299,210 @@ function InfoKarte({
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
         <p className="mt-0.5 text-sm text-slate-800">{wert}</p>
       </div>
+    </div>
+  );
+}
+
+function ManuelleZuordnung({
+  fall,
+  objekt,
+  kontakt,
+  dienstleister,
+  alleObjekte,
+  alleKontakte,
+  alleDienstleister,
+  onGespeichert,
+}: {
+  fall: Fall;
+  objekt: Objekt | null;
+  kontakt: Kontakt | null;
+  dienstleister: Dienstleister | null;
+  alleObjekte: Objekt[];
+  alleKontakte: Kontakt[];
+  alleDienstleister: Dienstleister[];
+  onGespeichert: () => void | Promise<void>;
+}) {
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [objektId, setObjektId] = useState("");
+  const [kontaktId, setKontaktId] = useState("");
+  const [dienstleisterId, setDienstleisterId] = useState("");
+  const [gewerk, setGewerk] = useState("");
+  const [wirdGespeichert, setWirdGespeichert] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  const bearbeitungStarten = () => {
+    setObjektId(fall.objekt_id != null ? String(fall.objekt_id) : "");
+    setKontaktId(fall.melder_kontakt_id != null ? String(fall.melder_kontakt_id) : "");
+    setDienstleisterId(fall.dienstleister_id != null ? String(fall.dienstleister_id) : "");
+    setGewerk(fall.gewerk ?? "");
+    setFehler(null);
+    setBearbeiten(true);
+  };
+
+  const speichern = async () => {
+    setWirdGespeichert(true);
+    setFehler(null);
+    try {
+      await api.patch(`/faelle/${fall.id}`, {
+        objekt_id: objektId ? Number(objektId) : null,
+        melder_kontakt_id: kontaktId ? Number(kontaktId) : null,
+        dienstleister_id: dienstleisterId ? Number(dienstleisterId) : null,
+        gewerk: gewerk || null,
+      });
+      setBearbeiten(false);
+      await onGespeichert();
+    } catch (e) {
+      setFehler(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setWirdGespeichert(false);
+    }
+  };
+
+  const wiederAufnehmen = async () => {
+    setWirdGespeichert(true);
+    setFehler(null);
+    try {
+      await api.patch(`/faelle/${fall.id}`, { status: "EINGEORDNET" });
+      await onGespeichert();
+    } catch (e) {
+      setFehler(e instanceof Error ? e.message : "Fall konnte nicht wieder aufgenommen werden.");
+    } finally {
+      setWirdGespeichert(false);
+    }
+  };
+
+  if (!bearbeiten) {
+    return (
+      <div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <InfoKarte
+            icon={Building2}
+            titel="Objekt"
+            wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "noch nicht ermittelt"}
+          />
+          <InfoKarte
+            icon={UserRound}
+            titel="Melder"
+            wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "noch nicht ermittelt"}
+          />
+          <InfoKarte
+            icon={Wrench}
+            titel="Dienstleister"
+            wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "noch nicht ermittelt"}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            onClick={bearbeitungStarten}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            <Pencil size={14} /> Manuell zuordnen
+          </button>
+          {fall.status === "ESKALIERT" && (
+            <button
+              onClick={wiederAufnehmen}
+              disabled={wirdGespeichert}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+            >
+              <PlayCircle size={15} /> Fall wieder aufnehmen
+            </button>
+          )}
+        </div>
+        {fehler && <p className="mt-2 text-sm text-rose-600">{fehler}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Objekt
+          </span>
+          <select
+            value={objektId}
+            onChange={(e) => setObjektId(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          >
+            <option value="">— nicht zugeordnet —</option>
+            {alleObjekte.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.bezeichnung} — {o.adresse}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Melder
+          </span>
+          <select
+            value={kontaktId}
+            onChange={(e) => setKontaktId(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          >
+            <option value="">— nicht zugeordnet —</option>
+            {alleKontakte.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.name} ({k.email})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Dienstleister
+          </span>
+          <select
+            value={dienstleisterId}
+            onChange={(e) => setDienstleisterId(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          >
+            <option value="">— nicht zugeordnet —</option>
+            {alleDienstleister.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} ({d.gewerk}
+                {d.aktiv ? "" : ", inaktiv"})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Gewerk
+          </span>
+          <select
+            value={gewerk}
+            onChange={(e) => setGewerk(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+          >
+            <option value="">— nicht zugeordnet —</option>
+            {GEWERK_OPTIONEN.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={speichern}
+          disabled={wirdGespeichert}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+        >
+          Speichern
+        </button>
+        <button
+          onClick={() => setBearbeiten(false)}
+          disabled={wirdGespeichert}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <X size={14} /> Abbrechen
+        </button>
+      </div>
+      {fehler && <p className="mt-2 text-sm text-rose-600">{fehler}</p>}
     </div>
   );
 }

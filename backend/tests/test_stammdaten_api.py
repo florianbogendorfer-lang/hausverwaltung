@@ -16,10 +16,12 @@ def test_objekte_liste():
     response = client.get("/api/objekte")
     assert response.status_code == 200
     daten = response.json()
-    assert len(daten) == 2
+    assert len(daten) == 4
     assert {o["bezeichnung"] for o in daten} == {
         "Liegenschaft Musterstraße 5",
         "Liegenschaft Beispielgasse 12",
+        "Liegenschaft Am Kanal 8",
+        "Liegenschaft Ringstraße 21",
     }
 
 
@@ -31,13 +33,13 @@ def test_objekt_details_404():
 def test_kontakte_liste():
     response = client.get("/api/kontakte")
     assert response.status_code == 200
-    assert len(response.json()) == 5
+    assert len(response.json()) == 9
 
 
 def test_dienstleister_liste():
     response = client.get("/api/dienstleister")
     assert response.status_code == 200
-    assert len(response.json()) == 5
+    assert len(response.json()) == 9
 
 
 def test_dienstleister_filter_nach_gewerk():

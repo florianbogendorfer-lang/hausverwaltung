@@ -35,11 +35,23 @@ def seed(session: Session) -> None:
         einheit="Top 2",
         notizen="Neubau, 12 Wohneinheiten",
     )
-    session.add(objekt_musterstrasse)
-    session.add(objekt_beispielgasse)
+    objekt_kanal = Objekt(
+        bezeichnung="Liegenschaft Am Kanal 8",
+        adresse="Am Kanal 8, 1030 Wien",
+        einheit="Top 7",
+        notizen="Sanierter Altbau, 9 Wohneinheiten",
+    )
+    objekt_ringstrasse = Objekt(
+        bezeichnung="Liegenschaft Ringstraße 21",
+        adresse="Ringstraße 21, 4020 Linz",
+        einheit="Top 1",
+        notizen="Neubau, 4 Wohneinheiten, Erdgeschoß-Lokal",
+    )
+    for objekt in (objekt_musterstrasse, objekt_beispielgasse, objekt_kanal, objekt_ringstrasse):
+        session.add(objekt)
     session.commit()
-    session.refresh(objekt_musterstrasse)
-    session.refresh(objekt_beispielgasse)
+    for objekt in (objekt_musterstrasse, objekt_beispielgasse, objekt_kanal, objekt_ringstrasse):
+        session.refresh(objekt)
 
     kontakte = [
         Kontakt(
@@ -77,6 +89,34 @@ def seed(session: Session) -> None:
             telefon="+43 664 5556667",
             objekt_id=objekt_beispielgasse.id,
         ),
+        Kontakt(
+            name="Tobias Kanaleck",
+            rolle=KontaktRolle.mieter,
+            email="tobias.kanaleck@example.test",
+            telefon="+43 660 3334445",
+            objekt_id=objekt_kanal.id,
+        ),
+        Kontakt(
+            name="Julia Wassergasse",
+            rolle=KontaktRolle.mieter,
+            email="julia.wassergasse@example.test",
+            telefon="+43 660 4445556",
+            objekt_id=objekt_kanal.id,
+        ),
+        Kontakt(
+            name="Markus Ringstraßer",
+            rolle=KontaktRolle.eigentuemer,
+            email="markus.ringstrasser@example.test",
+            telefon="+43 664 7778889",
+            objekt_id=objekt_ringstrasse.id,
+        ),
+        Kontakt(
+            name="Nina Lokalbesitzerin",
+            rolle=KontaktRolle.mieter,
+            email="nina.lokalbesitzerin@example.test",
+            telefon="+43 660 8889990",
+            objekt_id=objekt_ringstrasse.id,
+        ),
     ]
     for kontakt in kontakte:
         session.add(kontakt)
@@ -107,6 +147,14 @@ def seed(session: Session) -> None:
             aktiv=True,
         ),
         Dienstleister(
+            name="Rohrfrei Notdienst",
+            gewerk=Gewerk.installateur,
+            email="notdienst@rohrfrei.example.test",
+            telefon="+43 1 4447779",
+            konditionen="24h-Notdienst, Anfahrtspauschale EUR 60",
+            aktiv=True,
+        ),
+        Dienstleister(
             name="Elektro Blitzschnell",
             gewerk=Gewerk.elektriker,
             email="kontakt@blitzschnell.example.test",
@@ -115,11 +163,35 @@ def seed(session: Session) -> None:
             aktiv=True,
         ),
         Dienstleister(
+            name="Elektrotechnik Ohm & Watt",
+            gewerk=Gewerk.elektriker,
+            email="office@ohm-watt.example.test",
+            telefon="+43 1 5559991",
+            konditionen=None,
+            aktiv=False,
+        ),
+        Dienstleister(
             name="Maurermeister Fest & Stein",
             gewerk=Gewerk.maurer,
             email="info@fest-stein.example.test",
             telefon="+43 1 6667778",
             konditionen=None,
+            aktiv=True,
+        ),
+        Dienstleister(
+            name="Bau & Putz Linz GmbH",
+            gewerk=Gewerk.maurer,
+            email="anfragen@bauputz-linz.example.test",
+            telefon="+43 732 1112223",
+            konditionen=None,
+            aktiv=True,
+        ),
+        Dienstleister(
+            name="Facility Allround Service",
+            gewerk=Gewerk.sonstiges,
+            email="service@facility-allround.example.test",
+            telefon="+43 1 7778889",
+            konditionen="Für Anliegen ohne klares Gewerk, z. B. Schädlingsbekämpfung",
             aktiv=True,
         ),
     ]

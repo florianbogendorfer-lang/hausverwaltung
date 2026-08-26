@@ -37,5 +37,7 @@ export const api = {
     anfrage<T>(pfad, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
   put: <T>(pfad: string, body: unknown) =>
     anfrage<T>(pfad, { method: "PUT", body: JSON.stringify(body) }),
+  patch: <T>(pfad: string, body: unknown) =>
+    anfrage<T>(pfad, { method: "PATCH", body: JSON.stringify(body) }),
   del: (pfad: string) => anfrage<void>(pfad, { method: "DELETE" }),
 };
