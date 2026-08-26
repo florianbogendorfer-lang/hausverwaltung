@@ -1,9 +1,15 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   Building2,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
   Compass,
   Eye,
+  FileSearch,
   Gauge,
+  Info,
   Sparkles,
   UserRound,
   Wrench,
@@ -14,14 +20,24 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { FreigabeKarte } from "../components/FreigabeKarte";
 import { FallStatusBadge, NachrichtStatusBadge } from "../components/StatusBadge";
-import type { Aktion, Dienstleister, Fall, Freigabe, Kontakt, Nachricht, Objekt, Trace } from "../types";
+import type {
+  Aktion,
+  Dienstleister,
+  Fall,
+  FallStatus,
+  Freigabe,
+  Kontakt,
+  Nachricht,
+  Objekt,
+  Trace,
+} from "../types";
 
-// UI-3 — Fall-Detail mit Trace (§10): die „Denk-Sicht". Zeigt Fall-Stammdaten,
-// beteiligte Objekte/Kontakte/Dienstleister, die chronologische Timeline aus
-// traces + aktionen (inkl. verwendetem Modell je Schritt) sowie den
-// Nachrichtenverlauf. Liegt eine offene Freigabe für den Fall vor, erscheint
-// sie direkt hier oben — die Entscheidung fällt im vollen Kontext des
-// Falls, nicht aus einer entkoppelten globalen Liste heraus.
+// UI-3 — Fall-Detail (§10): „Was ist Sache, was muss ich tun". Reihenfolge
+// folgt bewusst progressive disclosure — zuerst die Handlungsanweisung in
+// Klartext, dann eine offene Freigabe (falls vorhanden — die eigentliche
+// Handlungsoberfläche), dann alle bisher ermittelten Fakten, dann der
+// Nachrichtenverlauf. Die rohe Schritt-für-Schritt-Timeline ist Beleg-/
+// Debugging-Detail und steht deshalb zugeklappt ganz am Ende.
 
 type TimelineEintrag =
   | { art: "trace"; zeitstempel: string; daten: Trace }
@@ -80,6 +96,12 @@ export default function FallDetail() {
     return eintraege.sort((x, y) => new Date(x.zeitstempel).getTime() - new Date(y.zeitstempel).getTime());
   }, [traces, aktionen]);
 
+  const eskalationsgrund = useMemo(() => {
+    const eintrag = aktionen.find((a) => a.aktionsart === "fall:eskaliert");
+    const grund = eintrag?.details?.grund;
+    return typeof grund === "string" ? grund : null;
+  }, [aktionen]);
+
   if (fehler) return <p className="text-rose-600">{fehler}</p>;
   if (!fall) return <p className="text-slate-400">Lädt…</p>;
 
@@ -92,7 +114,7 @@ export default function FallDetail() {
         <ArrowLeft size={15} /> zurück zum Board
       </Link>
 
-      <div className="mt-3 mb-6 flex items-start justify-between">
+      <div className="mt-3 mb-4 flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{fall.betreff}</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -103,6 +125,8 @@ export default function FallDetail() {
         </div>
         <FallStatusBadge status={fall.status} />
       </div>
+
+      <HandlungsanweisungBanner status={fall.status} eskalationsgrund={eskalationsgrund} />
 
       {offeneFreigabe && (
         <div className="mb-6">
@@ -116,70 +140,132 @@ export default function FallDetail() {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <InfoKarte
-          icon={Building2}
-          titel="Objekt"
-          wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "—"}
-        />
-        <InfoKarte
-          icon={UserRound}
-          titel="Melder"
-          wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "—"}
-        />
-        <InfoKarte
-          icon={Wrench}
-          titel="Dienstleister"
-          wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "—"}
-        />
-      </div>
-
-      {fall.zusammenfassung && (
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Zusammenfassung (Agent)
-          </h3>
-          <p className="text-sm text-slate-700">{fall.zusammenfassung}</p>
+      <section className="mb-6">
+        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-400">
+          <FileSearch size={14} /> Ermittelte Informationen
+        </h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <InfoKarte
+            icon={Building2}
+            titel="Objekt"
+            wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "noch nicht ermittelt"}
+          />
+          <InfoKarte
+            icon={UserRound}
+            titel="Melder"
+            wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "noch nicht ermittelt"}
+          />
+          <InfoKarte
+            icon={Wrench}
+            titel="Dienstleister"
+            wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "noch nicht ermittelt"}
+          />
         </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
-            Timeline
-          </h3>
-          <ol className="flex flex-col gap-3">
-            {timeline.map((eintrag) => (
-              <TimelineZeile key={`${eintrag.art}-${eintrag.daten.id}`} eintrag={eintrag} />
-            ))}
-            {timeline.length === 0 && <p className="text-sm text-slate-400">Keine Einträge.</p>}
-          </ol>
-        </div>
-
-        <div>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
-            Nachrichtenverlauf
-          </h3>
-          <div className="flex flex-col gap-3">
-            {nachrichten.map((n) => (
-              <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-700">
-                    {n.richtung === "eingehend" ? "↓ eingehend" : "↑ ausgehend"}
-                  </span>
-                  <NachrichtStatusBadge status={n.status} />
-                </div>
-                <p className="mt-1 text-slate-500">
-                  {n.von} → {n.an}
-                </p>
-                <p className="mt-1 font-medium text-slate-800">{n.betreff}</p>
-                <p className="mt-1 whitespace-pre-wrap text-slate-600">{n.inhalt}</p>
-              </div>
-            ))}
-            {nachrichten.length === 0 && <p className="text-sm text-slate-400">Keine Nachrichten.</p>}
+        {fall.zusammenfassung && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Zusammenfassung (Agent)
+            </h4>
+            <p className="text-sm text-slate-700">{fall.zusammenfassung}</p>
           </div>
+        )}
+      </section>
+
+      <section className="mb-6">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+          Nachrichtenverlauf
+        </h3>
+        <div className="flex flex-col gap-3">
+          {nachrichten.map((n) => (
+            <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-700">
+                  {n.richtung === "eingehend" ? "↓ eingehend" : "↑ ausgehend"}
+                </span>
+                <NachrichtStatusBadge status={n.status} />
+              </div>
+              <p className="mt-1 text-slate-500">
+                {n.von} → {n.an}
+              </p>
+              <p className="mt-1 font-medium text-slate-800">{n.betreff}</p>
+              <p className="mt-1 whitespace-pre-wrap text-slate-600">{n.inhalt}</p>
+            </div>
+          ))}
+          {nachrichten.length === 0 && <p className="text-sm text-slate-400">Keine Nachrichten.</p>}
         </div>
-      </div>
+      </section>
+
+      <VerlaufDisclosure timeline={timeline} />
+    </div>
+  );
+}
+
+const HANDLUNGSANWEISUNG: Record<
+  FallStatus,
+  { text: string; ton: "rose" | "amber" | "indigo" | "slate" | "emerald"; icon: typeof Info }
+> = {
+  NEU: { text: "Agent bearbeitet diesen Fall automatisch — keine Aktion nötig.", ton: "slate", icon: Info },
+  EINGEORDNET: {
+    text: "Agent reichert diesen Fall automatisch an — keine Aktion nötig.",
+    ton: "indigo",
+    icon: Info,
+  },
+  WARTET_AUF_FREIGABE: {
+    text: "Aktion nötig — prüfe die Freigabe unten und entscheide.",
+    ton: "amber",
+    icon: AlertTriangle,
+  },
+  DIENSTLEISTER_BEAUFTRAGT: {
+    text: "Dienstleister wurde beauftragt — wartet auf Terminrückmeldung. Keine Aktion nötig.",
+    ton: "indigo",
+    icon: Clock,
+  },
+  TERMIN_BESTAETIGT: {
+    text: "Termin ist bestätigt — wartet auf Erledigung vor Ort. Keine Aktion nötig.",
+    ton: "indigo",
+    icon: Clock,
+  },
+  ARBEIT_ERLEDIGT: {
+    text: "Arbeit ist erledigt — wartet auf die Rechnung. Keine Aktion nötig.",
+    ton: "indigo",
+    icon: Clock,
+  },
+  RECHNUNG_ERFASST: {
+    text: "Rechnung ist erfasst — Fall wird abgeschlossen. Keine Aktion nötig.",
+    ton: "indigo",
+    icon: Clock,
+  },
+  ABGESCHLOSSEN: { text: "Fall ist abgeschlossen.", ton: "emerald", icon: CheckCircle2 },
+  ESKALIERT: { text: "Eskaliert — bitte manuell übernehmen.", ton: "rose", icon: AlertTriangle },
+  ABGEBROCHEN: { text: "Fall wurde abgebrochen.", ton: "slate", icon: Info },
+};
+
+const BANNER_STYLE: Record<string, string> = {
+  rose: "border-rose-300 bg-rose-50 text-rose-800",
+  amber: "border-amber-300 bg-amber-50 text-amber-800",
+  indigo: "border-indigo-200 bg-indigo-50 text-indigo-800",
+  slate: "border-slate-200 bg-slate-100 text-slate-700",
+  emerald: "border-emerald-300 bg-emerald-50 text-emerald-800",
+};
+
+function HandlungsanweisungBanner({
+  status,
+  eskalationsgrund,
+}: {
+  status: FallStatus;
+  eskalationsgrund: string | null;
+}) {
+  const { text, ton, icon: Icon } = HANDLUNGSANWEISUNG[status];
+  const grundOhneEndpunkt = eskalationsgrund?.replace(/\.+$/, "");
+  const anzeigeText =
+    status === "ESKALIERT" && grundOhneEndpunkt
+      ? `Eskaliert — ${grundOhneEndpunkt}. Bitte manuell übernehmen.`
+      : text;
+
+  return (
+    <div className={`mb-6 flex items-start gap-3 rounded-xl border p-4 ${BANNER_STYLE[ton]}`}>
+      <Icon size={18} className="mt-0.5 shrink-0" />
+      <p className="text-sm font-medium">{anzeigeText}</p>
     </div>
   );
 }
@@ -203,6 +289,36 @@ function InfoKarte({
         <p className="mt-0.5 text-sm text-slate-800">{wert}</p>
       </div>
     </div>
+  );
+}
+
+function VerlaufDisclosure({ timeline }: { timeline: TimelineEintrag[] }) {
+  const [aufgeklappt, setAufgeklappt] = useState(false);
+
+  return (
+    <section>
+      <button
+        onClick={() => setAufgeklappt((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-slate-50"
+      >
+        <span className="text-sm font-semibold text-slate-700">
+          Verlauf anzeigen ({timeline.length} Schritt{timeline.length === 1 ? "" : "e"})
+        </span>
+        <ChevronDown
+          size={18}
+          className={`shrink-0 text-slate-400 transition-transform ${aufgeklappt ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {aufgeklappt && (
+        <ol className="mt-3 flex flex-col gap-3">
+          {timeline.map((eintrag) => (
+            <TimelineZeile key={`${eintrag.art}-${eintrag.daten.id}`} eintrag={eintrag} />
+          ))}
+          {timeline.length === 0 && <p className="text-sm text-slate-400">Keine Einträge.</p>}
+        </ol>
+      )}
+    </section>
   );
 }
 
