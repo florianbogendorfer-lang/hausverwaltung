@@ -13,5 +13,9 @@ def create_db_and_tables() -> None:
 
 
 def get_session() -> Generator[Session, None, None]:
-    with Session(engine) as session:
+    # expire_on_commit=False: der Agent-Loop führt pro Request mehrere
+    # Commits aus (Fall, Aktionen, Traces, Nachrichten). Mit dem Default
+    # würde jedes weitere Commit bereits zurückgegebene Objekte (z. B. den
+    # Fall) für die Response-Serialisierung entwerten.
+    with Session(engine, expire_on_commit=False) as session:
         yield session

@@ -1,32 +1,7 @@
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
-from sqlmodel.pool import StaticPool
 
-from app.db import get_session
 from app.main import app
 from app.models import Gewerk
-from app.seed import seed
-
-engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-
-
-def _get_session_override():
-    with Session(engine) as session:
-        yield session
-
-
-app.dependency_overrides[get_session] = _get_session_override
-
-
-def setup_module() -> None:
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        seed(session)
-
 
 client = TestClient(app)
 
