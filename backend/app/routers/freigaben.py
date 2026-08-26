@@ -73,11 +73,15 @@ def _get_freigabe_oder_404(session: Session, freigabe_id: int) -> Freigabe:
 
 @router.get("", response_model=list[FreigabeAnsicht])
 def liste_freigaben(
-    nur_offene: bool = True, session: Session = Depends(get_session)
+    nur_offene: bool = True,
+    fall_id: Optional[int] = None,
+    session: Session = Depends(get_session),
 ) -> list[FreigabeAnsicht]:
     query = select(Freigabe)
     if nur_offene:
         query = query.where(Freigabe.status == FreigabeStatus.offen)
+    if fall_id is not None:
+        query = query.where(Freigabe.fall_id == fall_id)
     freigaben = session.exec(query.order_by(Freigabe.erstellt_am)).all()
     return [FreigabeAnsicht.aus(f) for f in freigaben]
 

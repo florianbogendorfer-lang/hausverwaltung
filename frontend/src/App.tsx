@@ -1,9 +1,11 @@
-import { Inbox, Mail, Settings2, ShieldCheck } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { LayoutGrid, Mail, Settings2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { api } from "./api";
+import type { Freigabe } from "./types";
 
 const NAV_ITEMS = [
-  { to: "/", label: "Fälle", ende: true, icon: Inbox },
-  { to: "/freigaben", label: "Freigabe-Queue", icon: ShieldCheck },
+  { to: "/", label: "Board", ende: true, icon: LayoutGrid },
   { to: "/postfach", label: "Postfach & Outbox", icon: Mail },
   { to: "/stammdaten", label: "Stammdaten", icon: Settings2 },
 ];
@@ -25,10 +27,20 @@ function Logo() {
 }
 
 export default function App() {
+  const location = useLocation();
+  const [offeneFreigaben, setOffeneFreigaben] = useState(0);
+
+  useEffect(() => {
+    api
+      .get<Freigabe[]>("/freigaben?nur_offene=true")
+      .then((liste) => setOffeneFreigaben(liste.length))
+      .catch(() => undefined);
+  }, [location.pathname]);
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur supports-backdrop-blur:bg-white/70">
-        <div className="mx-auto flex max-w-6xl items-center gap-8 px-6 py-3.5">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-8 px-6 py-3.5">
           <div className="flex items-center gap-2.5">
             <Logo />
             <div className="leading-tight">
@@ -56,12 +68,17 @@ export default function App() {
               >
                 <item.icon size={16} strokeWidth={2.25} />
                 {item.label}
+                {item.to === "/" && offeneFreigaben > 0 && (
+                  <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-xs font-semibold text-white">
+                    {offeneFreigaben}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-[1400px] px-6 py-8">
         <Outlet />
       </main>
     </div>

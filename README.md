@@ -37,18 +37,16 @@ freigabepflichtig sind, steht zentral in `app/agent/policy.py` (FR-HITL-2)
 — nicht im Modell-Prompt.
 
 **Phase 4 — Web-GUI:** React + Vite + Tailwind-Operator-Oberfläche
-(`frontend/`) gemäß §12/UI-1 bis UI-5: Fall-Inbox mit Statusfiltern und
-Hervorhebung eskalierter/wartender Fälle (UI-1), Freigabe-Queue mit
-aufklappbaren Karten (Auslöser, Entwurf, Begründung, Fakten — FR-HITL-4)
-und Freigeben/Bearbeiten/Ablehnen (UI-2), Fall-Detail mit vollständiger
-Trace-Timeline inkl. Modell pro Schritt (UI-3), Stammdatenpflege für
-Objekte/Kontakte/Dienstleister (UI-4) sowie simuliertes Postfach mit
-vorformulierten Test-Mails und Outbox (UI-5). Läuft **ohne** konfigurierten
-`HV_ANTHROPIC_API_KEY` bereits vollständig vorführbar: ein regelbasierter
-`DemoLLMClient` (`backend/app/agent/demo_llm_client.py`) übernimmt dann
-Einordnung und Mailentwurf, damit der komplette Referenzfall auch ohne
-Zugangsdaten durchspielbar ist — mit echtem Key wird automatisch die
-Anthropic-API verwendet (reiner Konfigurationswechsel, NFR-5).
+(`frontend/`) gemäß §12/UI-1 bis UI-5. Statt vier lose verbundener Seiten
+ist das UI seit einem UX-Überarbeitungsdurchgang um den tatsächlichen
+Verarbeitungsfluss (§4.1) herum aufgebaut — siehe
+[„Web-GUI"](#web-gui-kanban-board-statt-getrennter-listen) unten für den
+Aufbau. Läuft **ohne** konfigurierten `HV_ANTHROPIC_API_KEY` bereits
+vollständig vorführbar: ein regelbasierter `DemoLLMClient`
+(`backend/app/agent/demo_llm_client.py`) übernimmt dann Einordnung und
+Mailentwurf, damit der komplette Referenzfall auch ohne Zugangsdaten
+durchspielbar ist — mit echtem Key wird automatisch die Anthropic-API
+verwendet (reiner Konfigurationswechsel, NFR-5).
 
 **Phase 5 — RAG-Vektorsuche:** `dokumente_durchsuchen` nutzt jetzt einen
 echten, von der DB getrennten Vektorspeicher (§6/§12) statt der früheren
@@ -178,16 +176,42 @@ Siehe `backend/app/agent/`:
 - `mail_adapter.py` — austauschbarer Versandkanal (§16 Phase 6), Default
   simuliert
 
-## Web-GUI
+## Web-GUI — Kanban-Board statt getrennter Listen
 
-Siehe `frontend/src/`:
-- `pages/FallInbox.tsx` — UI-1
-- `pages/FreigabeQueue.tsx` — UI-2
-- `pages/FallDetail.tsx` — UI-3 (Trace-Timeline)
-- `pages/Stammdaten.tsx` — UI-4
-- `pages/Postfach.tsx` — UI-5 (Postfach + Outbox)
+Die ursprüngliche UI (Phase 4) hatte vier lose verbundene Seiten
+(Fall-Inbox-Tabelle, separate Freigabe-Queue-Liste, Postfach, Stammdaten)
+— fachlich korrekt, aber die Freigabe-Entscheidung war vom Fallkontext
+getrennt, und nichts zeigte den Verarbeitungsfluss (§4.1) auf einen Blick.
+Ein UX-Überarbeitungsdurchgang hat das Board um den Fluss selbst
+aufgebaut, angelehnt an Kanban-Boards (Linear/Trello) und die Board-Sicht
+von Support-/Wartungs-Ticketsystemen (Zendesk, AppFolio/Buildium
+Maintenance-Boards — Spalte = Status, Karte = Vorgang, Priorität als
+eigene Zeile statt eigener Spalte):
+
+- **`pages/Board.tsx`** (UI-1, Startseite) — Kanban-Board, Spalten =
+  gruppierte Pipeline-Phasen (`Neu` · `Eingeordnet` · `Wartet auf
+  Freigabe` — hervorgehoben, das ist die Aktions-Spalte — · `In
+  Bearbeitung` · `Abgeschlossen`), eskalierte Fälle als eigene rote Zeile
+  oberhalb der Spalten (Eskalation ist „jederzeit" möglich, §4.1, kein
+  regulärer Pipeline-Schritt). **Bewusst kein Drag & Drop:** Statuswechsel
+  laufen über die Agent-/Freigabe-Logik (HITL), nicht über freies
+  Verschieben — das Board ist eine Sicht auf den Zustand, keine
+  Bedienoberfläche dafür (das hätte eine falsche Erwartung geweckt).
+- **`components/FreigabeKarte.tsx`** (vormals eigene UI-2-Seite) — die
+  Freigabe-Karte (Auslöser, Entwurf, Begründung, Fakten — FR-HITL-4;
+  Freigeben/Bearbeiten/Ablehnen — FR-HITL-5) erscheint jetzt direkt oben
+  in `FallDetail`, wenn eine offene Freigabe vorliegt — Entscheidungen
+  fallen im vollen Fallkontext, nicht aus einer entkoppelten globalen
+  Liste heraus (Best Practice aus Human-in-the-Loop-Approval-UX: Kontext
+  neben der Entscheidung vermeidet „Rubber-Stamping").
+- **`pages/FallDetail.tsx`** (UI-3) — Freigabe-Karte (falls offen) +
+  Trace-Timeline inkl. Modell pro Schritt + Nachrichtenverlauf.
+- **`pages/Stammdaten.tsx`** (UI-4), **`pages/Postfach.tsx`** (UI-5,
+  Postfach + Outbox) — unverändert.
+- Nav-Badge auf „Board" zeigt die Anzahl offener Freigaben (Inbox-
+  Badge-Muster, wie bei Mail-/Chat-Apps) — sichtbar von jeder Seite aus.
 - `api.ts` / `types.ts` — schlanker API-Client + Typen, gespiegelt aus den
-  Backend-Modellen
+  Backend-Modellen.
 
 ## Deployment (Clever Cloud)
 

@@ -9,16 +9,19 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import { FreigabeKarte } from "../components/FreigabeKarte";
 import { FallStatusBadge, NachrichtStatusBadge } from "../components/StatusBadge";
-import type { Aktion, Dienstleister, Fall, Kontakt, Nachricht, Objekt, Trace } from "../types";
+import type { Aktion, Dienstleister, Fall, Freigabe, Kontakt, Nachricht, Objekt, Trace } from "../types";
 
 // UI-3 — Fall-Detail mit Trace (§10): die „Denk-Sicht". Zeigt Fall-Stammdaten,
 // beteiligte Objekte/Kontakte/Dienstleister, die chronologische Timeline aus
 // traces + aktionen (inkl. verwendetem Modell je Schritt) sowie den
-// Nachrichtenverlauf.
+// Nachrichtenverlauf. Liegt eine offene Freigabe für den Fall vor, erscheint
+// sie direkt hier oben — die Entscheidung fällt im vollen Kontext des
+// Falls, nicht aus einer entkoppelten globalen Liste heraus.
 
 type TimelineEintrag =
   | { art: "trace"; zeitstempel: string; daten: Trace }
@@ -30,39 +33,44 @@ export default function FallDetail() {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [aktionen, setAktionen] = useState<Aktion[]>([]);
   const [nachrichten, setNachrichten] = useState<Nachricht[]>([]);
+  const [offeneFreigabe, setOffeneFreigabe] = useState<Freigabe | null>(null);
   const [objekt, setObjekt] = useState<Objekt | null>(null);
   const [kontakt, setKontakt] = useState<Kontakt | null>(null);
   const [dienstleister, setDienstleister] = useState<Dienstleister | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
-  useEffect(() => {
+  const laden = useCallback(async () => {
     if (!fallId) return;
-    (async () => {
-      try {
-        const f = await api.get<Fall>(`/faelle/${fallId}`);
-        setFall(f);
-        const [t, a, n] = await Promise.all([
-          api.get<Trace[]>(`/faelle/${fallId}/trace`),
-          api.get<Aktion[]>(`/faelle/${fallId}/aktionen`),
-          api.get<Nachricht[]>(`/faelle/${fallId}/nachrichten`),
-        ]);
-        setTraces(t);
-        setAktionen(a);
-        setNachrichten(n);
-        if (f.objekt_id) api.get<Objekt>(`/objekte/${f.objekt_id}`).then(setObjekt).catch(() => undefined);
-        if (f.melder_kontakt_id)
-          api.get<Kontakt>(`/kontakte/${f.melder_kontakt_id}`).then(setKontakt).catch(() => undefined);
-        if (f.dienstleister_id)
-          api
-            .get<Dienstleister>(`/dienstleister/${f.dienstleister_id}`)
-            .then(setDienstleister)
-            .catch(() => undefined);
-        setFehler(null);
-      } catch (e) {
-        setFehler(e instanceof Error ? e.message : "Fall konnte nicht geladen werden.");
-      }
-    })();
+    try {
+      const f = await api.get<Fall>(`/faelle/${fallId}`);
+      setFall(f);
+      const [t, a, n, fr] = await Promise.all([
+        api.get<Trace[]>(`/faelle/${fallId}/trace`),
+        api.get<Aktion[]>(`/faelle/${fallId}/aktionen`),
+        api.get<Nachricht[]>(`/faelle/${fallId}/nachrichten`),
+        api.get<Freigabe[]>(`/freigaben?nur_offene=true&fall_id=${fallId}`),
+      ]);
+      setTraces(t);
+      setAktionen(a);
+      setNachrichten(n);
+      setOffeneFreigabe(fr[0] ?? null);
+      if (f.objekt_id) api.get<Objekt>(`/objekte/${f.objekt_id}`).then(setObjekt).catch(() => undefined);
+      if (f.melder_kontakt_id)
+        api.get<Kontakt>(`/kontakte/${f.melder_kontakt_id}`).then(setKontakt).catch(() => undefined);
+      if (f.dienstleister_id)
+        api
+          .get<Dienstleister>(`/dienstleister/${f.dienstleister_id}`)
+          .then(setDienstleister)
+          .catch(() => undefined);
+      setFehler(null);
+    } catch (e) {
+      setFehler(e instanceof Error ? e.message : "Fall konnte nicht geladen werden.");
+    }
   }, [fallId]);
+
+  useEffect(() => {
+    laden();
+  }, [laden]);
 
   const timeline = useMemo<TimelineEintrag[]>(() => {
     const eintraege: TimelineEintrag[] = [
@@ -81,7 +89,7 @@ export default function FallDetail() {
         to="/"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
       >
-        <ArrowLeft size={15} /> zurück zur Fall-Inbox
+        <ArrowLeft size={15} /> zurück zum Board
       </Link>
 
       <div className="mt-3 mb-6 flex items-start justify-between">
@@ -95,6 +103,18 @@ export default function FallDetail() {
         </div>
         <FallStatusBadge status={fall.status} />
       </div>
+
+      {offeneFreigabe && (
+        <div className="mb-6">
+          <FreigabeKarte
+            freigabe={offeneFreigabe}
+            fall={fall}
+            objekt={objekt ?? undefined}
+            dienstleister={dienstleister ?? undefined}
+            onEntschieden={laden}
+          />
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <InfoKarte
