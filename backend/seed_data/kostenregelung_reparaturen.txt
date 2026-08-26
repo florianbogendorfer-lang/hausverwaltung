@@ -1,0 +1,19 @@
+Interne Kostenregelung Reparaturen — Auszug (synthetisches Beispieldokument)
+
+1. Zuständigkeit nach Gewerk
+
+   - Schlosser (Türschlösser, Sicherheitstechnik): Beauftragung durch
+     Hausverwaltung, Kosten trägt Eigentümerschaft, außer bei nachweislich
+     mutwilliger Beschädigung durch den Mieter.
+   - Installateur (Sanitär, Heizung): Beauftragung durch Hausverwaltung,
+     Kosten wie oben.
+   - Elektriker: Beauftragung durch Hausverwaltung bei Anlagen der
+     Gemeinschaft; bei Anlagen innerhalb der Mieteinheit Einzelfallprüfung.
+   - Maurer/bauliche Schäden: Beauftragung durch Hausverwaltung nach
+     Begutachtung.
+
+2. Freigabegrenzen
+
+   Beauftragungen bis EUR 500,00 können vom Sachbearbeiter direkt
+   freigegeben werden. Darüber ist Rücksprache mit der Objektleitung
+   erforderlich (im Prototyp: Eskalation).
