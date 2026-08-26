@@ -1,12 +1,11 @@
 """Tool-Katalog (§9).
 
 FR-AGENT-4: Der Agent handelt ausschließlich über diese Funktionen — keine
-freien Seiteneffekte. Freigabepflichtige Tools (`nachricht_senden`,
-`dienstleister_beauftragen`, `rechnung_erfassen`) sind in dieser Phase
-bewusst noch nicht funktionsfähig: die propose/commit-Trennung (FR-HITL-1)
-und die Freigabe-Queue kommen erst in Phase 3. Bis dahin lösen sie einen
-klaren Fehler statt eines stillen No-Ops aus — sicherer als so zu tun, als
-hätten sie gewirkt (§0: bei Unklarheit die sichere Variante wählen).
+freien Seiteneffekte. FR-HITL-1: Die drei freigabepflichtigen Tools
+(`nachricht_senden`, `dienstleister_beauftragen`, `rechnung_erfassen`)
+führen NICHTS direkt aus — sie legen nur einen `freigaben`-Eintrag
+(propose) an und parken den Fall. Die eigentliche Ausführung (commit)
+passiert erst in `app.agent.freigabe_service`, wenn der Operator freigibt.
 """
 
 from datetime import datetime
@@ -19,11 +18,13 @@ from app.agent.schemas import EingehendeMail, Einordnung
 from app.models import (
     Aktion,
     Akteur,
+    Aktionstyp,
     Dienstleister,
     Dokument,
     Fall,
     FallStatus,
     FallTyp,
+    Freigabe,
     Gewerk,
     Kontakt,
     Nachricht,
@@ -182,30 +183,115 @@ def nachricht_entwerfen(
     return nachricht
 
 
-def nachricht_senden(session: Session, nachricht_id: int) -> None:
-    """Entwurf versenden — freigabepflichtig (§5). Erst ab Phase 3
-    (Freigabe-Queue) verfügbar."""
-    raise NotImplementedError(
-        "nachricht_senden ist freigabepflichtig und erst ab Phase 3 (HITL "
-        "propose/commit, Freigabe-Queue) implementiert."
+def _freigabe_anlegen_oder_vorhandene(
+    session: Session,
+    fall: Fall,
+    aktionstyp: Aktionstyp,
+    payload: dict,
+    begruendung: str,
+    kontext_referenzen: dict,
+    idempotency_key: str,
+) -> Freigabe:
+    """FR-HITL-1 (propose) + FR-HITL-8 (Idempotenz): legt eine Freigabe an
+    und parkt den Fall — oder gibt bei erneutem Aufruf mit demselben
+    Idempotency-Key die bereits bestehende Freigabe zurück, statt sie
+    doppelt anzulegen."""
+    bestehende = session.exec(
+        select(Freigabe).where(Freigabe.idempotency_key == idempotency_key)
+    ).first()
+    if bestehende is not None:
+        return bestehende
+
+    freigabe = Freigabe(
+        fall_id=fall.id,
+        aktionstyp=aktionstyp,
+        payload=payload,
+        begruendung=begruendung,
+        kontext_referenzen=kontext_referenzen,
+        idempotency_key=idempotency_key,
+    )
+    session.add(freigabe)
+    fall.status = FallStatus.wartet_auf_freigabe
+    fall.geaendert_am = datetime.utcnow()
+    session.add(fall)
+    session.commit()
+    session.refresh(freigabe)
+
+    log_aktion(
+        session,
+        fall.id,
+        Akteur.agent,
+        "freigabe:angefordert",
+        {"freigabe_id": freigabe.id, "aktionstyp": aktionstyp.value},
+        freigabe_id=freigabe.id,
+    )
+    return freigabe
+
+
+def nachricht_senden(
+    session: Session,
+    fall: Fall,
+    nachricht: Nachricht,
+    begruendung: str,
+    kontext_referenzen: Optional[dict] = None,
+) -> Freigabe:
+    """Entwurf versenden — freigabepflichtig (§5, FR-HITL-2). Legt nur die
+    Freigabe an (propose); der tatsächliche Versand passiert erst beim
+    Commit in `freigabe_service.freigeben`."""
+    idempotency_key = f"nachricht_senden:{nachricht.id}"
+    payload = {"nachricht_id": nachricht.id, "an": nachricht.an, "betreff": nachricht.betreff}
+    return _freigabe_anlegen_oder_vorhandene(
+        session,
+        fall,
+        Aktionstyp.nachricht_senden,
+        payload,
+        begruendung,
+        kontext_referenzen or {},
+        idempotency_key,
     )
 
 
-def dienstleister_beauftragen(session: Session, dienstleister_id: int, fall_id: int, auftragstext: str) -> None:
-    """Beauftragung auslösen — freigabepflichtig (§5). Erst ab Phase 3
-    verfügbar."""
-    raise NotImplementedError(
-        "dienstleister_beauftragen ist freigabepflichtig und erst ab Phase 3 "
-        "(HITL propose/commit, Freigabe-Queue) implementiert."
+def dienstleister_beauftragen(
+    session: Session,
+    fall: Fall,
+    dienstleister_id: int,
+    auftragstext: str,
+    begruendung: str,
+    kontext_referenzen: Optional[dict] = None,
+) -> Freigabe:
+    """Beauftragung auslösen — freigabepflichtig, Geldbezug (§5)."""
+    idempotency_key = f"dienstleister_beauftragen:{fall.id}:{dienstleister_id}"
+    payload = {"dienstleister_id": dienstleister_id, "auftragstext": auftragstext}
+    return _freigabe_anlegen_oder_vorhandene(
+        session,
+        fall,
+        Aktionstyp.dienstleister_beauftragen,
+        payload,
+        begruendung,
+        kontext_referenzen or {},
+        idempotency_key,
     )
 
 
-def rechnung_erfassen(session: Session, fall_id: int, betrag: float, positionen: list[str]) -> None:
-    """(Simulierte) Rechnung buchen — freigabepflichtig (§5). Erst ab
-    Phase 3 verfügbar."""
-    raise NotImplementedError(
-        "rechnung_erfassen ist freigabepflichtig und erst ab Phase 3 (HITL "
-        "propose/commit, Freigabe-Queue) implementiert."
+def rechnung_erfassen(
+    session: Session,
+    fall: Fall,
+    betrag: float,
+    positionen: list[str],
+    begruendung: str,
+    kontext_referenzen: Optional[dict] = None,
+) -> Freigabe:
+    """(Simulierte) Rechnung buchen — freigabepflichtig, Geldbezug (§5)."""
+    idempotency_key = f"rechnung_erfassen:{fall.id}:{betrag}:{'-'.join(positionen)}"
+    payload = {"betrag": betrag, "positionen": positionen}
+    return _freigabe_anlegen_oder_vorhandene(
+        session,
+        fall,
+        Aktionstyp.rechnung_erfassen,
+        payload,
+        begruendung,
+        kontext_referenzen or {},
+        idempotency_key,
     )
 
 

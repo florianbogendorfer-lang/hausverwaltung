@@ -4,9 +4,10 @@ FR-AGENT-1: pro Fall wahrnehmen → planen → Tool wählen → beobachten →
 wiederholen, bis Ziel erreicht oder Freigabe/Eskalation nötig. Jeder
 Schritt schreibt einen `traces`-Eintrag.
 
-Phase 2 bildet den Ablauf bis zum ersten freigabepflichtigen Schritt ab
-(Beauftragungsmail-Entwurf, §4.2 Schritt 4) — das eigentliche Parken in
-`WARTET_AUF_FREIGABE` und die Freigabe-Queue folgen in Phase 3.
+Der Loop läuft bis zum ersten freigabepflichtigen Schritt (§4.2 Schritt 4:
+Beauftragungsmail entwerfen und zur Freigabe vorlegen) und pausiert dann
+(FR-HITL-3) — das Committen/Ablehnen der Freigabe passiert außerhalb des
+Loops in `app.agent.freigabe_service`, ausgelöst durch den Operator.
 """
 
 from app.agent import tools
@@ -154,7 +155,7 @@ def bearbeite_eingehende_mail(session: Session, router: ModelRouter, mail: Einge
     trace.log(
         TracePhase.plan,
         "Nächster Schritt: Beauftragungsmail entwerfen (Tool nachricht_entwerfen). "
-        "Versand ist freigabepflichtig und folgt erst in Phase 3.",
+        "Versand ist freigabepflichtig und erfordert danach eine Freigabe (§5).",
     )
     kontext = (
         f"Objekt: {objekt.bezeichnung}, {objekt.adresse}\n"
@@ -179,16 +180,38 @@ def bearbeite_eingehende_mail(session: Session, router: ModelRouter, mail: Einge
         modell=settings.modell_stark,
     )
 
-    tools.notiz_hinzufuegen(
+    # --- Schritt: Freigabe anfordern (FR-HITL-1, FR-HITL-2) ---
+    trace.log(
+        TracePhase.plan,
+        "Nächster Schritt: Versand freigabepflichtig → Tool nachricht_senden "
+        "legt nur eine Freigabe an (propose), führt nichts aus.",
+    )
+    begruendung = (
+        f"{dienstleister.name} ist ein aktiver Dienstleister für Gewerk "
+        f"'{einordnung.gewerk.value}'. Objekt: {objekt.bezeichnung}. "
+        f"Einordnung: {einordnung.begruendung} Herangezogene Dokumente: {quellen}."
+    )
+    trace.log(TracePhase.tool_call, "nachricht_senden(nachricht_id=..., begruendung=...)")
+    freigabe = tools.nachricht_senden(
         session,
-        fall.id,
-        "Beauftragungsmail-Entwurf liegt vor. Versand erfordert Freigabe "
-        "(Phase 3, FR-HITL-2) und wurde noch nicht ausgelöst.",
+        fall,
+        entwurf,
+        begruendung=begruendung,
+        kontext_referenzen={
+            "objekt_id": objekt.id,
+            "dienstleister_id": dienstleister.id,
+            "dokument_ids": [d.id for d in treffer],
+            "original_mail": mail.inhalt,
+        },
+    )
+    trace.log(
+        TracePhase.tool_result,
+        f"Freigabe #{freigabe.id} angelegt (Status={freigabe.status.value}) → Freigabe-Queue.",
     )
     trace.log(
         TracePhase.entscheidung,
-        "Fall bleibt in Status EINGEORDNET — Freigabe-Queue (WARTET_AUF_FREIGABE) "
-        "wird erst in Phase 3 eingeführt.",
+        f"Status → {FallStatus.wartet_auf_freigabe.value}. Agent pausiert diesen Fall "
+        "und arbeitet an anderen Fällen weiter (FR-HITL-3), bis der Operator entscheidet.",
     )
 
     return fall

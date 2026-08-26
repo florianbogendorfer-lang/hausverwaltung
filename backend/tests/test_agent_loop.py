@@ -36,7 +36,7 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
 
     assert fall["typ"] == "reparaturmeldung"
     assert fall["gewerk"] == "schlosser"
-    assert fall["status"] == FallStatus.eingeordnet.value
+    assert fall["status"] == FallStatus.wartet_auf_freigabe.value
     assert fall["objekt_id"] is not None
     assert fall["melder_kontakt_id"] is not None
     assert fall["dienstleister_id"] is not None
@@ -68,6 +68,17 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
     aktionsarten = {a["aktionsart"] for a in aktionen_response.json()}
     assert "fall:angelegt" in aktionsarten
     assert "nachricht:entwurf_erstellt" in aktionsarten
+    assert "freigabe:angefordert" in aktionsarten
+
+    freigaben_response = client.get("/freigaben")
+    assert freigaben_response.status_code == 200
+    offene_freigaben = [f for f in freigaben_response.json() if f["fall_id"] == fall_id]
+    assert len(offene_freigaben) == 1
+    freigabe = offene_freigaben[0]
+    assert freigabe["status"] == "offen"
+    assert freigabe["aktionstyp"] == "nachricht_senden"
+    assert freigabe["ueberfaellig"] is False
+    assert freigabe["begruendung"]
 
 
 def test_unklares_anliegen_wird_eskaliert():

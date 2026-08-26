@@ -24,5 +24,9 @@ class Settings(BaseSettings):
     # statt geraten.
     konfidenz_schwelle: float = 0.6
 
+    # FR-HITL-7 — offene Freigaben werden ab dieser Frist als überfällig
+    # markiert (keine Auto-Ausführung, nur Anzeige).
+    freigabe_timeout_stunden: int = 24
+
 
 settings = Settings()
