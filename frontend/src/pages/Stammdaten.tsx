@@ -1,3 +1,4 @@
+import { Building2, Plus, Trash2, UserRound, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, ApiFehler } from "../api";
 import type { Dienstleister, Gewerk, Kontakt, KontaktRolle, Objekt } from "../types";
@@ -7,22 +8,36 @@ import type { Dienstleister, Gewerk, Kontakt, KontaktRolle, Objekt } from "../ty
 
 type Tab = "objekte" | "kontakte" | "dienstleister";
 
+const TABS: { key: Tab; label: string; icon: typeof Building2 }[] = [
+  { key: "objekte", label: "Objekte", icon: Building2 },
+  { key: "kontakte", label: "Kontakte", icon: UserRound },
+  { key: "dienstleister", label: "Dienstleister", icon: Wrench },
+];
+
 export default function Stammdaten() {
   const [tab, setTab] = useState<Tab>("objekte");
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Stammdatenpflege</h2>
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Stammdatenpflege</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Objekte, Kontakte und Dienstleister, auf die sich der Agent bei der Fallbearbeitung stützt.
+        </p>
+      </div>
       <div className="mb-6 flex gap-1">
-        {(["objekte", "kontakte", "dienstleister"] as Tab[]).map((t) => (
+        {TABS.map((t) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize ${
-              tab === t ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+              tab === t.key
+                ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            {t}
+            <t.icon size={15} />
+            {t.label}
           </button>
         ))}
       </div>
@@ -65,9 +80,9 @@ function ObjektePflege() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="lg:col-span-2 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50/70 text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Bezeichnung</th>
               <th className="px-4 py-2 font-medium">Adresse</th>
@@ -77,13 +92,13 @@ function ObjektePflege() {
           </thead>
           <tbody>
             {liste.map((o) => (
-              <tr key={o.id} className="border-b border-slate-100 last:border-0">
+              <tr key={o.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50">
                 <td className="px-4 py-2">{o.bezeichnung}</td>
                 <td className="px-4 py-2 text-slate-600">{o.adresse}</td>
                 <td className="px-4 py-2 text-slate-600">{o.einheit ?? "—"}</td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => loeschen(o.id)} className="text-xs text-rose-600 hover:underline">
-                    löschen
+                  <button onClick={() => loeschen(o.id)} className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700">
+                    <Trash2 size={12} /> löschen
                   </button>
                 </td>
               </tr>
@@ -91,7 +106,7 @@ function ObjektePflege() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Neues Objekt</h3>
         <Feld label="Bezeichnung" value={formular.bezeichnung} onChange={(v) => setFormular({ ...formular, bezeichnung: v })} />
         <Feld label="Adresse" value={formular.adresse} onChange={(v) => setFormular({ ...formular, adresse: v })} />
@@ -100,9 +115,9 @@ function ObjektePflege() {
         <button
           onClick={anlegen}
           disabled={!formular.bezeichnung || !formular.adresse}
-          className="self-start rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="self-start inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
-          Anlegen
+          <Plus size={15} /> Anlegen
         </button>
       </div>
     </div>
@@ -144,9 +159,9 @@ function KontaktePflege() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="lg:col-span-2 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50/70 text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Rolle</th>
@@ -157,7 +172,7 @@ function KontaktePflege() {
           </thead>
           <tbody>
             {liste.map((k) => (
-              <tr key={k.id} className="border-b border-slate-100 last:border-0">
+              <tr key={k.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50">
                 <td className="px-4 py-2">{k.name}</td>
                 <td className="px-4 py-2 text-slate-600">{k.rolle}</td>
                 <td className="px-4 py-2 text-slate-600">{k.email}</td>
@@ -165,8 +180,8 @@ function KontaktePflege() {
                   {objekte.find((o) => o.id === k.objekt_id)?.bezeichnung ?? "—"}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => loeschen(k.id)} className="text-xs text-rose-600 hover:underline">
-                    löschen
+                  <button onClick={() => loeschen(k.id)} className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700">
+                    <Trash2 size={12} /> löschen
                   </button>
                 </td>
               </tr>
@@ -174,7 +189,7 @@ function KontaktePflege() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Neuer Kontakt</h3>
         <Feld label="Name" value={formular.name} onChange={(v) => setFormular({ ...formular, name: v })} />
         <label className="text-sm">
@@ -182,7 +197,7 @@ function KontaktePflege() {
           <select
             value={formular.rolle}
             onChange={(e) => setFormular({ ...formular, rolle: e.target.value as KontaktRolle })}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5"
+            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           >
             <option value="mieter">Mieter</option>
             <option value="eigentümer">Eigentümer</option>
@@ -193,9 +208,9 @@ function KontaktePflege() {
         <button
           onClick={anlegen}
           disabled={!formular.name || !formular.email}
-          className="self-start rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="self-start inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
-          Anlegen
+          <Plus size={15} /> Anlegen
         </button>
       </div>
     </div>
@@ -234,9 +249,9 @@ function DienstleisterPflege() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="lg:col-span-2 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+          <thead className="border-b border-slate-200 bg-slate-50/70 text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Gewerk</th>
@@ -247,7 +262,7 @@ function DienstleisterPflege() {
           </thead>
           <tbody>
             {liste.map((d) => (
-              <tr key={d.id} className="border-b border-slate-100 last:border-0">
+              <tr key={d.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50">
                 <td className="px-4 py-2">{d.name}</td>
                 <td className="px-4 py-2 text-slate-600">{d.gewerk}</td>
                 <td className="px-4 py-2 text-slate-600">{d.email}</td>
@@ -259,8 +274,8 @@ function DienstleisterPflege() {
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => loeschen(d.id)} className="text-xs text-rose-600 hover:underline">
-                    löschen
+                  <button onClick={() => loeschen(d.id)} className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700">
+                    <Trash2 size={12} /> löschen
                   </button>
                 </td>
               </tr>
@@ -268,7 +283,7 @@ function DienstleisterPflege() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Neuer Dienstleister</h3>
         <Feld label="Name" value={formular.name} onChange={(v) => setFormular({ ...formular, name: v })} />
         <label className="text-sm">
@@ -276,7 +291,7 @@ function DienstleisterPflege() {
           <select
             value={formular.gewerk}
             onChange={(e) => setFormular({ ...formular, gewerk: e.target.value as Gewerk })}
-            className="w-full rounded-md border border-slate-300 px-3 py-1.5"
+            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           >
             <option value="schlosser">Schlosser</option>
             <option value="maurer">Maurer</option>
@@ -298,9 +313,9 @@ function DienstleisterPflege() {
         <button
           onClick={anlegen}
           disabled={!formular.name || !formular.email}
-          className="self-start rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="self-start inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
-          Anlegen
+          <Plus size={15} /> Anlegen
         </button>
       </div>
     </div>
@@ -314,7 +329,7 @@ function Feld({ label, value, onChange }: { label: string; value: string; onChan
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-slate-300 px-3 py-1.5"
+        className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
       />
     </label>
   );

@@ -1,3 +1,14 @@
+import {
+  ArrowLeft,
+  Building2,
+  Compass,
+  Eye,
+  Gauge,
+  Sparkles,
+  UserRound,
+  Wrench,
+  Zap,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
@@ -66,13 +77,16 @@ export default function FallDetail() {
 
   return (
     <div>
-      <Link to="/" className="text-sm text-slate-500 hover:underline">
-        ← zurück zur Fall-Inbox
+      <Link
+        to="/"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
+      >
+        <ArrowLeft size={15} /> zurück zur Fall-Inbox
       </Link>
 
-      <div className="mt-2 mb-6 flex items-start justify-between">
+      <div className="mt-3 mb-6 flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{fall.betreff}</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{fall.betreff}</h2>
           <p className="mt-1 text-sm text-slate-500">
             Fall #{fall.id} · {fall.typ}
             {fall.gewerk && <> · {fall.gewerk}</>}
@@ -83,16 +97,25 @@ export default function FallDetail() {
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <InfoKarte titel="Objekt" wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "—"} />
-        <InfoKarte titel="Melder" wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "—"} />
         <InfoKarte
+          icon={Building2}
+          titel="Objekt"
+          wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "—"}
+        />
+        <InfoKarte
+          icon={UserRound}
+          titel="Melder"
+          wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "—"}
+        />
+        <InfoKarte
+          icon={Wrench}
           titel="Dienstleister"
           wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "—"}
         />
       </div>
 
       {fall.zusammenfassung && (
-        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
             Zusammenfassung (Agent)
           </h3>
@@ -119,7 +142,7 @@ export default function FallDetail() {
           </h3>
           <div className="flex flex-col gap-3">
             {nachrichten.map((n) => (
-              <div key={n.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+              <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-3.5 text-sm shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-slate-700">
                     {n.richtung === "eingehend" ? "↓ eingehend" : "↑ ausgehend"}
@@ -141,11 +164,24 @@ export default function FallDetail() {
   );
 }
 
-function InfoKarte({ titel, wert }: { titel: string; wert: string }) {
+function InfoKarte({
+  icon: Icon,
+  titel,
+  wert,
+}: {
+  icon: typeof Building2;
+  titel: string;
+  wert: string;
+}) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
-      <p className="mt-1 text-sm text-slate-800">{wert}</p>
+    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <Icon size={15} />
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
+        <p className="mt-0.5 text-sm text-slate-800">{wert}</p>
+      </div>
     </div>
   );
 }
@@ -159,13 +195,22 @@ const PHASE_LABEL: Record<Trace["phase"], string> = {
   reasoning: "Reasoning",
 };
 
-const PHASE_FARBE: Record<Trace["phase"], string> = {
-  wahrnehmung: "border-slate-300",
-  plan: "border-sky-300",
-  tool_call: "border-violet-300",
-  tool_result: "border-violet-300",
-  entscheidung: "border-amber-400",
-  reasoning: "border-slate-300",
+const PHASE_ICON: Record<Trace["phase"], typeof Eye> = {
+  wahrnehmung: Eye,
+  plan: Compass,
+  tool_call: Wrench,
+  tool_result: Wrench,
+  entscheidung: Zap,
+  reasoning: Gauge,
+};
+
+const PHASE_STYLE: Record<Trace["phase"], string> = {
+  wahrnehmung: "bg-slate-100 text-slate-600",
+  plan: "bg-sky-100 text-sky-700",
+  tool_call: "bg-violet-100 text-violet-700",
+  tool_result: "bg-violet-100 text-violet-700",
+  entscheidung: "bg-amber-100 text-amber-700",
+  reasoning: "bg-slate-100 text-slate-600",
 };
 
 function TimelineZeile({ eintrag }: { eintrag: TimelineEintrag }) {
@@ -173,41 +218,54 @@ function TimelineZeile({ eintrag }: { eintrag: TimelineEintrag }) {
 
   if (eintrag.art === "trace") {
     const t = eintrag.daten;
+    const Icon = PHASE_ICON[t.phase];
     return (
-      <li className={`rounded-lg border-l-4 bg-white p-3 shadow-sm ${PHASE_FARBE[t.phase]}`}>
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <span>
-            Schritt {t.schritt_nr} · {PHASE_LABEL[t.phase]}
-          </span>
-          <span className="flex items-center gap-2">
-            {t.modell && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
-                {t.modell}
-              </span>
-            )}
-            {t.dauer_ms != null && <span>{t.dauer_ms} ms</span>}
-            <span>{zeit}</span>
-          </span>
+      <li className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+        <div
+          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${PHASE_STYLE[t.phase]}`}
+        >
+          <Icon size={14} />
         </div>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{t.inhalt}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+            <span className="font-medium text-slate-500">
+              Schritt {t.schritt_nr} · {PHASE_LABEL[t.phase]}
+            </span>
+            <span className="flex items-center gap-2">
+              {t.modell && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                  {t.modell}
+                </span>
+              )}
+              {t.dauer_ms != null && <span>{t.dauer_ms} ms</span>}
+              <span>{zeit}</span>
+            </span>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{t.inhalt}</p>
+        </div>
       </li>
     );
   }
 
   const a = eintrag.daten;
   return (
-    <li className="rounded-lg border-l-4 border-emerald-300 bg-emerald-50/50 p-3">
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>
-          Aktion · {a.akteur} · {a.aktionsart}
-        </span>
-        <span>{zeit}</span>
+    <li className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+        <Sparkles size={14} />
       </div>
-      {Object.keys(a.details).length > 0 && (
-        <pre className="mt-1 overflow-x-auto text-xs text-slate-600">
-          {JSON.stringify(a.details, null, 2)}
-        </pre>
-      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span className="font-medium text-slate-500">
+            Aktion · {a.akteur} · {a.aktionsart}
+          </span>
+          <span>{zeit}</span>
+        </div>
+        {Object.keys(a.details).length > 0 && (
+          <pre className="mt-1 overflow-x-auto text-xs text-slate-600">
+            {JSON.stringify(a.details, null, 2)}
+          </pre>
+        )}
+      </div>
     </li>
   );
 }

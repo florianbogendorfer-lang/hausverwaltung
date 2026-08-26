@@ -1,3 +1,14 @@
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  FileText,
+  Mail,
+  Pencil,
+  ShieldCheck,
+  Wrench,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, ApiFehler } from "../api";
 import { FreigabeStatusBadge } from "../components/StatusBadge";
@@ -50,26 +61,36 @@ export default function FreigabeQueue() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Freigabe-Queue</h2>
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Freigabe-Queue</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Jede Aktion mit Außenwirkung wartet hier auf deine Entscheidung.
+          </p>
+        </div>
         <div className="flex items-center gap-4 text-sm">
           <label className="flex items-center gap-2 text-slate-600">
             Operator
             <input
               value={entscheider}
               onChange={(e) => entscheiderAendern(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1"
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             />
           </label>
           <label className="flex items-center gap-2 text-slate-600">
-            <input type="checkbox" checked={nurOffene} onChange={(e) => setNurOffene(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={nurOffene}
+              onChange={(e) => setNurOffene(e.target.checked)}
+              className="accent-indigo-600"
+            />
             nur offene
           </label>
         </div>
       </div>
 
       {fehler && (
-        <p className="mb-4 rounded-md bg-rose-50 px-4 py-2 text-sm text-rose-700">{fehler}</p>
+        <p className="mb-4 rounded-lg bg-rose-50 px-4 py-2.5 text-sm text-rose-700">{fehler}</p>
       )}
 
       <div className="flex flex-col gap-4">
@@ -93,14 +114,21 @@ export default function FreigabeQueue() {
           />
         ))}
         {freigaben.length === 0 && (
-          <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-slate-400">
-            Keine {nurOffene ? "offenen " : ""}Freigaben.
-          </p>
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-14 text-center">
+            <ShieldCheck className="mx-auto mb-2 text-slate-300" size={28} />
+            <p className="text-slate-400">Keine {nurOffene ? "offenen " : ""}Freigaben.</p>
+          </div>
         )}
       </div>
     </div>
   );
 }
+
+const AKTIONSTYP_ICON: Record<Freigabe["aktionstyp"], typeof Mail> = {
+  nachricht_senden: Mail,
+  dienstleister_beauftragen: Wrench,
+  rechnung_erfassen: FileText,
+};
 
 function FreigabeKarte({
   freigabe,
@@ -180,30 +208,42 @@ function FreigabeKarte({
     }
   }
 
+  const AktionsIcon = AKTIONSTYP_ICON[freigabe.aktionstyp];
+
   return (
-    <div className={`rounded-lg border bg-white ${freigabe.ueberfaellig ? "border-rose-300" : "border-slate-200"}`}>
+    <div
+      className={`rounded-xl border bg-white shadow-sm ${freigabe.ueberfaellig ? "border-rose-300" : "border-slate-200"}`}
+    >
       <button
         onClick={() => setAufgeklappt((v) => !v)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left"
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-900">
-              {AKTIONSTYP_LABEL[freigabe.aktionstyp]}
-            </span>
-            <FreigabeStatusBadge status={freigabe.status} />
-            {freigabe.ueberfaellig && (
-              <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-semibold text-white">
-                überfällig
-              </span>
-            )}
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+            <AktionsIcon size={17} />
           </div>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Fall: {fall?.betreff ?? `#${freigabe.fall_id}`} · angelegt{" "}
-            {new Date(freigabe.erstellt_am).toLocaleString("de-AT")}
-          </p>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-slate-900">
+                {AKTIONSTYP_LABEL[freigabe.aktionstyp]}
+              </span>
+              <FreigabeStatusBadge status={freigabe.status} />
+              {freigabe.ueberfaellig && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-xs font-semibold text-white">
+                  <AlertTriangle size={11} /> überfällig
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Fall: {fall?.betreff ?? `#${freigabe.fall_id}`} · angelegt{" "}
+              {new Date(freigabe.erstellt_am).toLocaleString("de-AT")}
+            </p>
+          </div>
         </div>
-        <span className="text-slate-400">{aufgeklappt ? "▲" : "▼"}</span>
+        <ChevronDown
+          size={18}
+          className={`shrink-0 text-slate-400 transition-transform ${aufgeklappt ? "rotate-180" : ""}`}
+        />
       </button>
 
       {aufgeklappt && (
@@ -289,13 +329,13 @@ function FreigabeKarte({
                   <button
                     disabled={läuft}
                     onClick={() => freigeben(entwurfText)}
-                    className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    Bearbeiteten Text freigeben
+                    <Check size={15} /> Bearbeiteten Text freigeben
                   </button>
                   <button
                     onClick={() => setBearbeitenModus(false)}
-                    className="rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                    className="rounded-lg px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-100"
                   >
                     Abbrechen
                   </button>
@@ -306,18 +346,18 @@ function FreigabeKarte({
                     value={ablehnGrund}
                     onChange={(e) => setAblehnGrund(e.target.value)}
                     placeholder="Ablehnungsgrund…"
-                    className="min-w-64 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    className="min-w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
                   />
                   <button
                     disabled={läuft || !ablehnGrund.trim()}
                     onClick={ablehnen}
-                    className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-rose-700 disabled:opacity-50"
                   >
-                    Ablehnung bestätigen
+                    <X size={15} /> Ablehnung bestätigen
                   </button>
                   <button
                     onClick={() => setAblehnenModus(false)}
-                    className="rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                    className="rounded-lg px-3.5 py-2 text-sm text-slate-600 hover:bg-slate-100"
                   >
                     Abbrechen
                   </button>
@@ -327,23 +367,23 @@ function FreigabeKarte({
                   <button
                     disabled={läuft}
                     onClick={() => freigeben()}
-                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    Freigeben
+                    <Check size={15} /> Freigeben
                   </button>
                   {nachricht && (
                     <button
                       onClick={() => setBearbeitenModus(true)}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                     >
-                      Bearbeiten
+                      <Pencil size={15} /> Bearbeiten
                     </button>
                   )}
                   <button
                     onClick={() => setAblehnenModus(true)}
-                    className="rounded-md border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 px-3.5 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50"
                   >
-                    Ablehnen
+                    <X size={15} /> Ablehnen
                   </button>
                 </>
               )}
