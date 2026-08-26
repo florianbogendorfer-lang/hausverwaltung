@@ -7,6 +7,8 @@ Phase 3 (§16, HITL propose/commit): Freigabe-Queue-Endpunkte für
 Freigeben/Bearbeiten/Ablehnen.
 Phase 4 (§16, GUI): CRUD-Endpunkte für Stammdaten + Outbox-Endpunkt und
 CORS für die React-Operator-Oberfläche (`frontend/`).
+Phase 5 (§16, RAG): der Vektorindex für `dokumente_durchsuchen` wird beim
+Start aus der Tabelle `dokumente` neu aufgebaut (siehe `lifespan` unten).
 
 Deployment: alle API-Routen liegen unter `/api`, damit sie nicht mit den
 gleichnamigen React-Router-Pfaden (`/faelle`, `/freigaben`, …) kollidieren,
@@ -20,8 +22,10 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from sqlmodel import Session, select
 
-from app.db import create_db_and_tables
+from app.db import create_db_and_tables, engine
+from app.models import Dokument
 from app.routers import (
     dienstleister,
     dokumente,
@@ -32,11 +36,18 @@ from app.routers import (
     outbox,
     postfach,
 )
+from app.routers.postfach import get_dokumenten_index
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    # §16 Phase 5: der Chroma-Index ist abgeleitete Daten — bei jedem Start
+    # aus der DB (System of Record) neu aufgebaut, robust auch ohne
+    # persistentes Docker-Volume für chroma_data/.
+    with Session(engine) as session:
+        alle_dokumente = list(session.exec(select(Dokument)).all())
+    get_dokumenten_index().indizieren(alle_dokumente)
     yield
 
 

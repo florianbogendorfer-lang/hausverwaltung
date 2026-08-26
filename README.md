@@ -4,7 +4,7 @@ Umsetzung des Lastenhefts „HITL-Agent für Hausverwaltung" — siehe dort für
 den vollständigen Anforderungskatalog. Dieses Repository baut die Phasen aus
 §16 nacheinander auf.
 
-## Aktueller Stand: Phase 1 + Phase 2 + Phase 3 + Phase 4
+## Aktueller Stand: Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5
 
 **Phase 1 — Fundament:** Projektgerüst, Datenmodell (§7, DM-1 bis DM-9),
 Alembic-Migrationen, synthetische Seed-Daten (Objekte, Kontakte,
@@ -50,9 +50,23 @@ Einordnung und Mailentwurf, damit der komplette Referenzfall auch ohne
 Zugangsdaten durchspielbar ist — mit echtem Key wird automatisch die
 Anthropic-API verwendet (reiner Konfigurationswechsel, NFR-5).
 
-**Noch nicht enthalten** (spätere Phasen laut §16): echte RAG-Vektorsuche
-(nutzt bisher eine einfache Stichwortsuche als Platzhalter), echter
-Mail-Adapter, weitere Anliegen-Typen.
+**Phase 5 — RAG-Vektorsuche:** `dokumente_durchsuchen` nutzt jetzt einen
+echten, von der DB getrennten Vektorspeicher (§6/§12) statt der früheren
+Stichwortzählung: [Chroma](https://www.trychroma.com/) mit eingebauter
+ONNX-Embedding-Funktion (kein API-Key nötig), gekapselt in
+`backend/app/agent/vector_store.py::DokumentenIndex`. Der Index wird bei
+jedem App-Start aus der Tabelle `dokumente` neu aufgebaut — abgeleitete
+Daten, die DB bleibt das System of Record (kein persistentes Docker-Volume
+für `chroma_data/` nötig). Damit findet der Agent auch bei umformulierten
+Anfragen die passende Dokumentpassage (z. B. „Wer bezahlt, wenn das
+Türschloss kaputt geht?" → Hausordnung/Mustermietvertrag, ganz ohne
+wörtliche Übereinstimmung). Wie beim `ModelRouter` ist die Embedding-
+Funktion injizierbar: Tests laufen mit einem In-Memory-Index und einem
+deterministischen Hash-Embedding (`tests/fakes.py::FakeEmbeddingFunction`)
+weiterhin komplett netzwerkfrei (§0).
+
+**Noch nicht enthalten** (spätere Phase laut §16): echter Mail-Adapter,
+weitere Anliegen-Typen (Phase 6).
 
 ### Setup — Backend
 
@@ -122,9 +136,13 @@ cd backend
 pytest
 ```
 
-Die Tests laufen ohne Netzwerkzugriff/API-Key — ein `FakeLLMClient`
-(`backend/tests/fakes.py`) simuliert die Modellantworten deterministisch,
-passend zum Grundsatz „externe Welt wird simuliert" (§0).
+Die Tests laufen ohne Netzwerkzugriff/API-Key — ein `FakeLLMClient` und
+eine `FakeEmbeddingFunction` (`backend/tests/fakes.py`) simulieren
+Modellantworten bzw. Dokumenten-Embeddings deterministisch, passend zum
+Grundsatz „externe Welt wird simuliert" (§0). Der erste Lauf, der den
+*echten* Chroma-Index nutzt (z. B. beim manuellen Server-Start), lädt
+einmalig das ~80-MB-ONNX-Embedding-Modell nach — im Docker-Image ist das
+bereits vorab gebacken (siehe `Dockerfile`).
 
 ## Datenmodell
 
@@ -141,6 +159,8 @@ Siehe `backend/app/agent/`:
 - `trace_logger.py` — Denk-/Schritt-Protokoll (DM-8)
 - `policy.py` — zentrale Freigabe-Policy (FR-HITL-2)
 - `freigabe_service.py` — Freigabe-Commit/-Ablehnung (FR-HITL-1/5/8)
+- `vector_store.py` — Chroma-Vektorindex für `dokumente_durchsuchen` (§16
+  Phase 5)
 
 ## Web-GUI
 
@@ -192,7 +212,6 @@ GitHub-App-Repo-Freigabe auf Clever-Cloud-Seite (Organisation/Repo nicht
 für die Clever-Cloud-GitHub-Integration freigegeben) — das ist außerhalb
 dieses Repos zu prüfen, nicht code-seitig lösbar.
 
-## Nächste Phasen
+## Nächste Phase
 
-- Phase 5: echte RAG-Vektorsuche über die Dokumentensammlung
 - Phase 6: echter IMAP/SMTP-Adapter, weitere Anliegen-Typen

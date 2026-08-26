@@ -14,6 +14,7 @@ from app.agent import tools
 from app.agent.model_router import ModelRouter, SchemaValidierungFehlgeschlagen
 from app.agent.schemas import EingehendeMail
 from app.agent.trace_logger import TraceLogger
+from app.agent.vector_store import DokumentenIndex
 from app.config import settings
 from app.models import (
     Fall,
@@ -28,7 +29,9 @@ from sqlmodel import Session
 HAUSVERWALTUNG_ABSENDER = "hausverwaltung@example.test"
 
 
-def bearbeite_eingehende_mail(session: Session, router: ModelRouter, mail: EingehendeMail) -> Fall:
+def bearbeite_eingehende_mail(
+    session: Session, router: ModelRouter, index: DokumentenIndex, mail: EingehendeMail
+) -> Fall:
     # Im MVP ist „reparaturmeldung" der einzige unterstützte Falltyp (§1),
     # daher kann der Fall sofort angelegt werden — Trace-Einträge (DM-8)
     # benötigen von Anfang an eine gültige fall_id.
@@ -147,7 +150,7 @@ def bearbeite_eingehende_mail(session: Session, router: ModelRouter, mail: Einge
     )
     frage = f"Zuständigkeit Kostenregelung {einordnung.gewerk.value} Reparatur"
     trace.log(TracePhase.tool_call, f"dokumente_durchsuchen(frage={frage!r})")
-    treffer = tools.dokumente_durchsuchen(session, frage)
+    treffer = tools.dokumente_durchsuchen(session, index, frage)
     quellen = ", ".join(d.titel for d in treffer) or "keine passende Passage gefunden"
     trace.log(TracePhase.tool_result, f"Herangezogene Dokumente: {quellen}")
 

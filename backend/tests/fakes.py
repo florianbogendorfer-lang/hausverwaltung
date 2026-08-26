@@ -1,9 +1,14 @@
-"""Fake-LLM-Client für Tests — kein Netzwerkzugriff nötig (§0: externe Welt
-wird simuliert). Liefert deterministische, szenario-gesteuerte Antworten."""
+"""Fakes für Tests — kein Netzwerkzugriff nötig (§0: externe Welt wird
+simuliert). Liefern deterministische, szenario-gesteuerte Antworten."""
 
+import hashlib
 import json
 
+import chromadb
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+
 from app.agent.model_router import LLMAntwort
+from app.agent.vector_store import DokumentenIndex
 
 
 class FakeLLMClient:
@@ -48,3 +53,48 @@ class FakeLLMClient:
             }
 
         return LLMAntwort(text=json.dumps(daten), modell=modell, dauer_ms=5)
+
+
+class FakeEmbeddingFunction(EmbeddingFunction[Documents]):
+    """Deterministisches Bag-of-Words-Hashing statt eines echten
+    Embedding-Modells — kein Modell-Download, keine Netzwerkabhängigkeit.
+    Für die in den Tests verwendeten, thematisch klar unterscheidbaren
+    Dokumente reicht reiner Wortüberlapp, um plausible Nächste-Nachbarn-
+    Ergebnisse zu liefern. L2-normalisiert, damit Chromas (euklidische)
+    Distanzberechnung nicht von der Dokumentlänge dominiert wird, sondern
+    den thematischen Überlapp widerspiegelt."""
+
+    DIM = 64
+
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, input: Documents) -> Embeddings:
+        vektoren = []
+        for text in input:
+            vektor = [0.0] * self.DIM
+            for wort in text.lower().split():
+                index = int(hashlib.sha1(wort.encode()).hexdigest(), 16) % self.DIM
+                vektor[index] += 1.0
+            norm = sum(v * v for v in vektor) ** 0.5
+            if norm > 0:
+                vektor = [v / norm for v in vektor]
+            vektoren.append(vektor)
+        return vektoren
+
+    @staticmethod
+    def name() -> str:
+        return "fake-hash-embedding"
+
+    def get_config(self) -> dict:
+        return {}
+
+    @staticmethod
+    def build_from_config(config: dict) -> "FakeEmbeddingFunction":
+        return FakeEmbeddingFunction()
+
+
+def fake_dokumenten_index() -> DokumentenIndex:
+    """In-Memory-Chroma-Client (keine Persistenz) + Fake-Embedding — für
+    Tests, die den Agent-Loop komplett durchlaufen."""
+    return DokumentenIndex(client=chromadb.Client(), embedding_function=FakeEmbeddingFunction())

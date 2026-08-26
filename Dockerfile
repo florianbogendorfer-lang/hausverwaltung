@@ -16,6 +16,15 @@ WORKDIR /app
 COPY backend/ ./
 RUN pip install --no-cache-dir .
 
+# §16 Phase 5: Chromas Default-Embedding-Modell (ONNX MiniLM, ~80 MB) hier
+# einmal auslösen, damit es im Image gebacken ist — der Container braucht
+# beim Start dann kein Netzwerk mehr dafür (nur einmalig beim Build).
+RUN python -c "\
+import chromadb; \
+c = chromadb.Client(); \
+col = c.get_or_create_collection('warmup'); \
+col.upsert(ids=['1'], documents=['warmup'])"
+
 COPY --from=frontend-build /app/frontend/dist ./static
 
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

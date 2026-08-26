@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 
 from app.agent.model_router import ModellStufe, ModelRouter
 from app.agent.schemas import EingehendeMail, Einordnung
+from app.agent.vector_store import DokumentenIndex
 from app.models import (
     Aktion,
     Akteur,
@@ -96,21 +97,16 @@ def dienstleister_suchen(session: Session, gewerk: Gewerk) -> list[Dienstleister
     )
 
 
-def dokumente_durchsuchen(session: Session, frage: str, top_k: int = 2) -> list[Dokument]:
-    """RAG über Hausordnung/Verträge.
-
-    Platzhalter für Phase 1: einfache Stichwortsuche über den Volltext.
-    Echte Vektorsuche folgt in Phase 5 (§16).
-    """
-    begriffe = [b.lower() for b in frage.split() if len(b) > 3]
-    dokumente = list(session.exec(select(Dokument)).all())
-
-    def score(dok: Dokument) -> int:
-        text = dok.inhalt.lower()
-        return sum(text.count(b) for b in begriffe)
-
-    treffer = sorted((d for d in dokumente if score(d) > 0), key=score, reverse=True)
-    return treffer[:top_k]
+def dokumente_durchsuchen(
+    session: Session, index: DokumentenIndex, frage: str, top_k: int = 2
+) -> list[Dokument]:
+    """RAG über Hausordnung/Verträge (§16 Phase 5) — echte Vektorsuche über
+    einen von der DB getrennten Vektorspeicher (app.agent.vector_store)."""
+    treffer_ids = index.suchen(frage, top_k=top_k)
+    if not treffer_ids:
+        return []
+    dokumente = {d.id: d for d in session.exec(select(Dokument).where(Dokument.id.in_(treffer_ids))).all()}
+    return [dokumente[i] for i in treffer_ids if i in dokumente]
 
 
 def fall_anlegen(session: Session, typ: FallTyp, betreff: str) -> Fall:

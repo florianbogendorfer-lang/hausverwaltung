@@ -28,5 +28,9 @@ class Settings(BaseSettings):
     # markiert (keine Auto-Ausführung, nur Anzeige).
     freigabe_timeout_stunden: int = 24
 
+    # §16 Phase 5 — Vektorspeicher für dokumente_durchsuchen, getrennt von
+    # der relationalen DB (§6), damit er unabhängig von SQLite/Postgres ist.
+    chroma_persist_dir: str = "./chroma_data"
+
 
 settings = Settings()
