@@ -17,7 +17,13 @@ export type FallStatus =
   | "ABGEBROCHEN";
 
 export type NachrichtRichtung = "eingehend" | "ausgehend";
-export type NachrichtStatus = "empfangen" | "entwurf" | "freigegeben" | "gesendet_simuliert" | "abgelehnt";
+export type NachrichtStatus =
+  | "empfangen"
+  | "entwurf"
+  | "freigegeben"
+  | "gesendet_simuliert"
+  | "gesendet"
+  | "abgelehnt";
 export type TracePhase = "wahrnehmung" | "plan" | "tool_call" | "tool_result" | "entscheidung" | "reasoning";
 export type Aktionstyp = "nachricht_senden" | "dienstleister_beauftragen" | "rechnung_erfassen";
 export type FreigabeStatus = "offen" | "freigegeben" | "bearbeitet_freigegeben" | "abgelehnt";

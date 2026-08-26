@@ -4,7 +4,7 @@ Umsetzung des Lastenhefts „HITL-Agent für Hausverwaltung" — siehe dort für
 den vollständigen Anforderungskatalog. Dieses Repository baut die Phasen aus
 §16 nacheinander auf.
 
-## Aktueller Stand: Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5
+## Aktueller Stand: Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 + Phase 6 (Adapter-Architektur)
 
 **Phase 1 — Fundament:** Projektgerüst, Datenmodell (§7, DM-1 bis DM-9),
 Alembic-Migrationen, synthetische Seed-Daten (Objekte, Kontakte,
@@ -65,8 +65,22 @@ Funktion injizierbar: Tests laufen mit einem In-Memory-Index und einem
 deterministischen Hash-Embedding (`tests/fakes.py::FakeEmbeddingFunction`)
 weiterhin komplett netzwerkfrei (§0).
 
-**Noch nicht enthalten** (spätere Phase laut §16): echter Mail-Adapter,
-weitere Anliegen-Typen (Phase 6).
+**Phase 6 — Mail-Adapter-Architektur (bewusst weiter simuliert):**
+`app/agent/mail_adapter.py` formalisiert den ausgehenden Kanal als
+austauschbare `MailAdapter`-Schnittstelle — dieselbe Dependency-Injection
+wie bei `ModelRouter`/`DokumentenIndex`. `freigabe_service.freigeben` kennt
+nur das Protokoll, nicht die konkrete Implementierung. Default bleibt
+`SimulierterMailAdapter` (§0/§2.2: kein echter Mailversand im Prototyp).
+Es gibt zusätzlich einen echten, funktionierenden `SmtpMailAdapter`
+(STARTTLS über `smtplib`) — der wird aber **nur aktiv**, wenn `HV_SMTP_HOST`
+explizit gesetzt wird (`get_mail_adapter()` wählt danach, analog zum
+`HV_ANTHROPIC_API_KEY`-Umschalter). Ohne SMTP-Konfiguration ändert sich am
+Verhalten nichts. Ein `NachrichtStatus.gesendet` (echt) ergänzt das
+bisherige `gesendet_simuliert`, damit das Audit-Log (§11) im Zweifel
+erkennen lässt, ob wirklich etwas rausging. Der eingehende Kanal
+(simuliertes Postfach, `POST /api/postfach/eingang`) hatte seine
+Austauschstelle bereits seit Phase 2 — echter IMAP-Eingang und weitere
+Anliegen-Typen bleiben offen für einen späteren Durchgang.
 
 ### Setup — Backend
 
@@ -161,6 +175,8 @@ Siehe `backend/app/agent/`:
 - `freigabe_service.py` — Freigabe-Commit/-Ablehnung (FR-HITL-1/5/8)
 - `vector_store.py` — Chroma-Vektorindex für `dokumente_durchsuchen` (§16
   Phase 5)
+- `mail_adapter.py` — austauschbarer Versandkanal (§16 Phase 6), Default
+  simuliert
 
 ## Web-GUI
 
@@ -193,6 +209,10 @@ kollidieren, wenn beides aus demselben Origin kommt.
    nötig.
 3. Optional als Umgebungsvariable setzen: `HV_ANTHROPIC_API_KEY` (ohne
    Key läuft automatisch der regelbasierte `DemoLLMClient`, siehe oben).
+   Ebenfalls optional: `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/
+   `HV_SMTP_PASSWORT`/`HV_SMTP_ABSENDER` für echten Mailversand (§16
+   Phase 6) — ohne diese Variablen bleibt der Versand vollständig
+   simuliert.
 4. `PORT` wird von Clever Cloud automatisch injiziert, der Container
    bindet daran (`docker-entrypoint.sh`, Fallback `8080` für lokale Tests).
 5. Deploy auslösen — beim Containerstart laufen die Alembic-Migrationen
@@ -212,6 +232,8 @@ GitHub-App-Repo-Freigabe auf Clever-Cloud-Seite (Organisation/Repo nicht
 für die Clever-Cloud-GitHub-Integration freigegeben) — das ist außerhalb
 dieses Repos zu prüfen, nicht code-seitig lösbar.
 
-## Nächste Phase
+## Offen
 
-- Phase 6: echter IMAP/SMTP-Adapter, weitere Anliegen-Typen
+- Echter IMAP-Eingang (der ausgehende Kanal ist als Adapter vorbereitet,
+  siehe Phase 6 oben — der eingehende noch nicht)
+- Weitere Anliegen-Typen über „Reparaturmeldung" hinaus

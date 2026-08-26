@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.agent.freigabe_service import FreigabeBereitsEntschieden, ablehnen, freigeben, ist_ueberfaellig
+from app.agent.mail_adapter import MailAdapter, get_mail_adapter
 from app.db import get_session
 from app.models import Freigabe, FreigabeStatus
 
@@ -88,13 +89,16 @@ def freigabe_details(freigabe_id: int, session: Session = Depends(get_session)) 
 
 @router.post("/{freigabe_id}/freigeben", response_model=FreigabeAnsicht)
 def freigabe_erteilen(
-    freigabe_id: int, body: FreigebenRequest, session: Session = Depends(get_session)
+    freigabe_id: int,
+    body: FreigebenRequest,
+    session: Session = Depends(get_session),
+    mail_adapter: MailAdapter = Depends(get_mail_adapter),
 ) -> FreigabeAnsicht:
     """FR-HITL-5: Freigeben — optional mit bearbeitetem Text (dann
     "bearbeitet_freigegeben")."""
     freigabe = _get_freigabe_oder_404(session, freigabe_id)
     try:
-        freigabe = freigeben(session, freigabe, body.entscheider, body.bearbeiteter_text)
+        freigabe = freigeben(session, freigabe, body.entscheider, body.bearbeiteter_text, mail_adapter)
     except FreigabeBereitsEntschieden as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return FreigabeAnsicht.aus(freigabe)

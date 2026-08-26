@@ -13,6 +13,7 @@ from datetime import datetime
 
 from sqlmodel import Session
 
+from app.agent.mail_adapter import MailAdapter, get_mail_adapter
 from app.agent.tools import log_aktion
 from app.config import settings
 from app.models import (
@@ -49,9 +50,15 @@ def _sicherstellen_offen(freigabe: Freigabe) -> None:
 
 
 def freigeben(
-    session: Session, freigabe: Freigabe, entscheider: str, bearbeiteter_text: str | None = None
+    session: Session,
+    freigabe: Freigabe,
+    entscheider: str,
+    bearbeiteter_text: str | None = None,
+    mail_adapter: MailAdapter | None = None,
 ) -> Freigabe:
-    """Freigeben, optional nach Bearbeitung des Entwurfs (FR-HITL-5)."""
+    """Freigeben, optional nach Bearbeitung des Entwurfs (FR-HITL-5). Der
+    tatsächliche Versand läuft über den (austauschbaren) MailAdapter —
+    §16 Phase 6, Default bleibt simuliert."""
     _sicherstellen_offen(freigabe)
     fall = session.get(Fall, freigabe.fall_id)
 
@@ -59,7 +66,7 @@ def freigeben(
         nachricht = session.get(Nachricht, freigabe.payload["nachricht_id"])
         if bearbeiteter_text is not None:
             nachricht.inhalt = bearbeiteter_text
-        nachricht.status = NachrichtStatus.gesendet_simuliert
+        (mail_adapter or get_mail_adapter()).senden(nachricht)
         session.add(nachricht)
         fall.status = FallStatus.dienstleister_beauftragt
     elif freigabe.aktionstyp == Aktionstyp.dienstleister_beauftragen:

@@ -22,6 +22,11 @@ class NachrichtStatus(str, enum.Enum):
     freigegeben = "freigegeben"
     gesendet_simuliert = "gesendet_simuliert"
     abgelehnt = "abgelehnt"
+    # §16 Phase 6: echter Versand über einen konfigurierten SMTP-Adapter
+    # (app.agent.mail_adapter.SmtpMailAdapter) — per Default inaktiv, siehe
+    # dort. Unterscheidet sich bewusst von gesendet_simuliert, damit das
+    # Audit-Log (§11) erkennen lässt, ob wirklich etwas rausging.
+    gesendet = "gesendet"
 
 
 class Nachricht(SQLModel, table=True):

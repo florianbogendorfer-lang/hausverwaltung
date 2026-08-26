@@ -62,6 +62,7 @@ const NACHRICHT_STATUS: Record<NachrichtStatus, { ton: Ton; label: string }> = {
   entwurf: { ton: "amber", label: "entwurf" },
   freigegeben: { ton: "emerald", label: "freigegeben" },
   gesendet_simuliert: { ton: "emerald", label: "gesendet (simuliert)" },
+  gesendet: { ton: "emerald", label: "gesendet" },
   abgelehnt: { ton: "rose", label: "abgelehnt" },
 };
 

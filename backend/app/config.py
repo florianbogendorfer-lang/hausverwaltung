@@ -32,5 +32,15 @@ class Settings(BaseSettings):
     # der relationalen DB (§6), damit er unabhängig von SQLite/Postgres ist.
     chroma_persist_dir: str = "./chroma_data"
 
+    # §16 Phase 6 — echter SMTP-Versand, bewusst per Default deaktiviert
+    # (§2.2/§0: kein echter Mailversand im Prototyp). Erst wenn smtp_host
+    # gesetzt ist, verwendet get_mail_adapter() den echten SmtpMailAdapter
+    # statt des simulierten (gleiches Muster wie anthropic_api_key).
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_benutzer: str | None = None
+    smtp_passwort: str | None = None
+    smtp_absender: str | None = None
+
 
 settings = Settings()
