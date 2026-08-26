@@ -1,0 +1,213 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "../api";
+import { FallStatusBadge, NachrichtStatusBadge } from "../components/StatusBadge";
+import type { Aktion, Dienstleister, Fall, Kontakt, Nachricht, Objekt, Trace } from "../types";
+
+// UI-3 — Fall-Detail mit Trace (§10): die „Denk-Sicht". Zeigt Fall-Stammdaten,
+// beteiligte Objekte/Kontakte/Dienstleister, die chronologische Timeline aus
+// traces + aktionen (inkl. verwendetem Modell je Schritt) sowie den
+// Nachrichtenverlauf.
+
+type TimelineEintrag =
+  | { art: "trace"; zeitstempel: string; daten: Trace }
+  | { art: "aktion"; zeitstempel: string; daten: Aktion };
+
+export default function FallDetail() {
+  const { fallId } = useParams();
+  const [fall, setFall] = useState<Fall | null>(null);
+  const [traces, setTraces] = useState<Trace[]>([]);
+  const [aktionen, setAktionen] = useState<Aktion[]>([]);
+  const [nachrichten, setNachrichten] = useState<Nachricht[]>([]);
+  const [objekt, setObjekt] = useState<Objekt | null>(null);
+  const [kontakt, setKontakt] = useState<Kontakt | null>(null);
+  const [dienstleister, setDienstleister] = useState<Dienstleister | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!fallId) return;
+    (async () => {
+      try {
+        const f = await api.get<Fall>(`/faelle/${fallId}`);
+        setFall(f);
+        const [t, a, n] = await Promise.all([
+          api.get<Trace[]>(`/faelle/${fallId}/trace`),
+          api.get<Aktion[]>(`/faelle/${fallId}/aktionen`),
+          api.get<Nachricht[]>(`/faelle/${fallId}/nachrichten`),
+        ]);
+        setTraces(t);
+        setAktionen(a);
+        setNachrichten(n);
+        if (f.objekt_id) api.get<Objekt>(`/objekte/${f.objekt_id}`).then(setObjekt).catch(() => undefined);
+        if (f.melder_kontakt_id)
+          api.get<Kontakt>(`/kontakte/${f.melder_kontakt_id}`).then(setKontakt).catch(() => undefined);
+        if (f.dienstleister_id)
+          api
+            .get<Dienstleister>(`/dienstleister/${f.dienstleister_id}`)
+            .then(setDienstleister)
+            .catch(() => undefined);
+        setFehler(null);
+      } catch (e) {
+        setFehler(e instanceof Error ? e.message : "Fall konnte nicht geladen werden.");
+      }
+    })();
+  }, [fallId]);
+
+  const timeline = useMemo<TimelineEintrag[]>(() => {
+    const eintraege: TimelineEintrag[] = [
+      ...traces.map((t): TimelineEintrag => ({ art: "trace", zeitstempel: t.zeitstempel, daten: t })),
+      ...aktionen.map((a): TimelineEintrag => ({ art: "aktion", zeitstempel: a.zeitstempel, daten: a })),
+    ];
+    return eintraege.sort((x, y) => new Date(x.zeitstempel).getTime() - new Date(y.zeitstempel).getTime());
+  }, [traces, aktionen]);
+
+  if (fehler) return <p className="text-rose-600">{fehler}</p>;
+  if (!fall) return <p className="text-slate-400">Lädt…</p>;
+
+  return (
+    <div>
+      <Link to="/" className="text-sm text-slate-500 hover:underline">
+        ← zurück zur Fall-Inbox
+      </Link>
+
+      <div className="mt-2 mb-6 flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">{fall.betreff}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Fall #{fall.id} · {fall.typ}
+            {fall.gewerk && <> · {fall.gewerk}</>}
+            {fall.konfidenz != null && <> · Konfidenz {(fall.konfidenz * 100).toFixed(0)}%</>}
+          </p>
+        </div>
+        <FallStatusBadge status={fall.status} />
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <InfoKarte titel="Objekt" wert={objekt ? `${objekt.bezeichnung} — ${objekt.adresse}` : "—"} />
+        <InfoKarte titel="Melder" wert={kontakt ? `${kontakt.name} (${kontakt.email})` : "—"} />
+        <InfoKarte
+          titel="Dienstleister"
+          wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "—"}
+        />
+      </div>
+
+      {fall.zusammenfassung && (
+        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Zusammenfassung (Agent)
+          </h3>
+          <p className="text-sm text-slate-700">{fall.zusammenfassung}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            Timeline
+          </h3>
+          <ol className="flex flex-col gap-3">
+            {timeline.map((eintrag) => (
+              <TimelineZeile key={`${eintrag.art}-${eintrag.daten.id}`} eintrag={eintrag} />
+            ))}
+            {timeline.length === 0 && <p className="text-sm text-slate-400">Keine Einträge.</p>}
+          </ol>
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            Nachrichtenverlauf
+          </h3>
+          <div className="flex flex-col gap-3">
+            {nachrichten.map((n) => (
+              <div key={n.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-slate-700">
+                    {n.richtung === "eingehend" ? "↓ eingehend" : "↑ ausgehend"}
+                  </span>
+                  <NachrichtStatusBadge status={n.status} />
+                </div>
+                <p className="mt-1 text-slate-500">
+                  {n.von} → {n.an}
+                </p>
+                <p className="mt-1 font-medium text-slate-800">{n.betreff}</p>
+                <p className="mt-1 whitespace-pre-wrap text-slate-600">{n.inhalt}</p>
+              </div>
+            ))}
+            {nachrichten.length === 0 && <p className="text-sm text-slate-400">Keine Nachrichten.</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoKarte({ titel, wert }: { titel: string; wert: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
+      <p className="mt-1 text-sm text-slate-800">{wert}</p>
+    </div>
+  );
+}
+
+const PHASE_LABEL: Record<Trace["phase"], string> = {
+  wahrnehmung: "Wahrnehmung",
+  plan: "Plan",
+  tool_call: "Tool-Aufruf",
+  tool_result: "Tool-Ergebnis",
+  entscheidung: "Entscheidung",
+  reasoning: "Reasoning",
+};
+
+const PHASE_FARBE: Record<Trace["phase"], string> = {
+  wahrnehmung: "border-slate-300",
+  plan: "border-sky-300",
+  tool_call: "border-violet-300",
+  tool_result: "border-violet-300",
+  entscheidung: "border-amber-400",
+  reasoning: "border-slate-300",
+};
+
+function TimelineZeile({ eintrag }: { eintrag: TimelineEintrag }) {
+  const zeit = new Date(eintrag.zeitstempel).toLocaleTimeString("de-AT");
+
+  if (eintrag.art === "trace") {
+    const t = eintrag.daten;
+    return (
+      <li className={`rounded-lg border-l-4 bg-white p-3 shadow-sm ${PHASE_FARBE[t.phase]}`}>
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span>
+            Schritt {t.schritt_nr} · {PHASE_LABEL[t.phase]}
+          </span>
+          <span className="flex items-center gap-2">
+            {t.modell && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+                {t.modell}
+              </span>
+            )}
+            {t.dauer_ms != null && <span>{t.dauer_ms} ms</span>}
+            <span>{zeit}</span>
+          </span>
+        </div>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{t.inhalt}</p>
+      </li>
+    );
+  }
+
+  const a = eintrag.daten;
+  return (
+    <li className="rounded-lg border-l-4 border-emerald-300 bg-emerald-50/50 p-3">
+      <div className="flex items-center justify-between text-xs text-slate-400">
+        <span>
+          Aktion · {a.akteur} · {a.aktionsart}
+        </span>
+        <span>{zeit}</span>
+      </div>
+      {Object.keys(a.details).length > 0 && (
+        <pre className="mt-1 overflow-x-auto text-xs text-slate-600">
+          {JSON.stringify(a.details, null, 2)}
+        </pre>
+      )}
+    </li>
+  );
+}

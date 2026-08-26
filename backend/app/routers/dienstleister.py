@@ -1,12 +1,22 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models import Dienstleister, Gewerk
 
 router = APIRouter(prefix="/dienstleister", tags=["dienstleister"])
+
+
+class DienstleisterEingabe(BaseModel):
+    name: str
+    gewerk: Gewerk
+    email: str
+    telefon: Optional[str] = None
+    konditionen: Optional[str] = None
+    aktiv: bool = True
 
 
 @router.get("", response_model=list[Dienstleister])
@@ -28,3 +38,39 @@ def dienstleister_details(
     if dienstleister is None:
         raise HTTPException(status_code=404, detail="Dienstleister nicht gefunden")
     return dienstleister
+
+
+@router.post("", response_model=Dienstleister, status_code=201)
+def dienstleister_anlegen(
+    eingabe: DienstleisterEingabe, session: Session = Depends(get_session)
+) -> Dienstleister:
+    """UI-4 — Stammdatenpflege (§10)."""
+    dienstleister = Dienstleister(**eingabe.model_dump())
+    session.add(dienstleister)
+    session.commit()
+    session.refresh(dienstleister)
+    return dienstleister
+
+
+@router.put("/{dienstleister_id}", response_model=Dienstleister)
+def dienstleister_aktualisieren(
+    dienstleister_id: int, eingabe: DienstleisterEingabe, session: Session = Depends(get_session)
+) -> Dienstleister:
+    dienstleister = session.get(Dienstleister, dienstleister_id)
+    if dienstleister is None:
+        raise HTTPException(status_code=404, detail="Dienstleister nicht gefunden")
+    for feld, wert in eingabe.model_dump().items():
+        setattr(dienstleister, feld, wert)
+    session.add(dienstleister)
+    session.commit()
+    session.refresh(dienstleister)
+    return dienstleister
+
+
+@router.delete("/{dienstleister_id}", status_code=204)
+def dienstleister_loeschen(dienstleister_id: int, session: Session = Depends(get_session)) -> None:
+    dienstleister = session.get(Dienstleister, dienstleister_id)
+    if dienstleister is None:
+        raise HTTPException(status_code=404, detail="Dienstleister nicht gefunden")
+    session.delete(dienstleister)
+    session.commit()

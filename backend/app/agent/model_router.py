@@ -95,9 +95,19 @@ def _extrahiere_json(text: str) -> str:
     return text[start : ende + 1]
 
 
+def _default_client() -> LLMClient:
+    if settings.anthropic_api_key:
+        return AnthropicLLMClient()
+    # Kein API-Key konfiguriert: Demo-Client statt Absturz, damit der
+    # Prototyp auch ohne Zugangsdaten vorführbar ist (§0).
+    from app.agent.demo_llm_client import DemoLLMClient
+
+    return DemoLLMClient()
+
+
 class ModelRouter:
     def __init__(self, client: LLMClient | None = None) -> None:
-        self._client = client or AnthropicLLMClient()
+        self._client = client or _default_client()
 
     def modell_fuer(self, stufe: ModellStufe) -> str:
         if stufe == ModellStufe.guenstig:

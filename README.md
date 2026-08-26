@@ -4,7 +4,7 @@ Umsetzung des Lastenhefts „HITL-Agent für Hausverwaltung" — siehe dort für
 den vollständigen Anforderungskatalog. Dieses Repository baut die Phasen aus
 §16 nacheinander auf.
 
-## Aktueller Stand: Phase 1 + Phase 2 + Phase 3
+## Aktueller Stand: Phase 1 + Phase 2 + Phase 3 + Phase 4
 
 **Phase 1 — Fundament:** Projektgerüst, Datenmodell (§7, DM-1 bis DM-9),
 Alembic-Migrationen, synthetische Seed-Daten (Objekte, Kontakte,
@@ -36,11 +36,25 @@ aber nicht automatisch ausgeführt (FR-HITL-7). Die Policy, welche Tools
 freigabepflichtig sind, steht zentral in `app/agent/policy.py` (FR-HITL-2)
 — nicht im Modell-Prompt.
 
-**Noch nicht enthalten** (spätere Phasen laut §16): Web-GUI, echte
-RAG-Vektorsuche (Phase 2/3 nutzen eine einfache Stichwortsuche als
-Platzhalter), echter Mail-Adapter.
+**Phase 4 — Web-GUI:** React + Vite + Tailwind-Operator-Oberfläche
+(`frontend/`) gemäß §12/UI-1 bis UI-5: Fall-Inbox mit Statusfiltern und
+Hervorhebung eskalierter/wartender Fälle (UI-1), Freigabe-Queue mit
+aufklappbaren Karten (Auslöser, Entwurf, Begründung, Fakten — FR-HITL-4)
+und Freigeben/Bearbeiten/Ablehnen (UI-2), Fall-Detail mit vollständiger
+Trace-Timeline inkl. Modell pro Schritt (UI-3), Stammdatenpflege für
+Objekte/Kontakte/Dienstleister (UI-4) sowie simuliertes Postfach mit
+vorformulierten Test-Mails und Outbox (UI-5). Läuft **ohne** konfigurierten
+`HV_ANTHROPIC_API_KEY` bereits vollständig vorführbar: ein regelbasierter
+`DemoLLMClient` (`backend/app/agent/demo_llm_client.py`) übernimmt dann
+Einordnung und Mailentwurf, damit der komplette Referenzfall auch ohne
+Zugangsdaten durchspielbar ist — mit echtem Key wird automatisch die
+Anthropic-API verwendet (reiner Konfigurationswechsel, NFR-5).
 
-### Setup
+**Noch nicht enthalten** (spätere Phasen laut §16): echte RAG-Vektorsuche
+(nutzt bisher eine einfache Stichwortsuche als Platzhalter), echter
+Mail-Adapter, weitere Anliegen-Typen.
+
+### Setup — Backend
 
 ```bash
 cd backend
@@ -54,12 +68,25 @@ alembic upgrade head
 # Seed-Daten laden (idempotent)
 python -m app.seed
 
-# Anthropic-API-Key setzen (für den Agent-Loop, §12)
+# Optional: Anthropic-API-Key setzen (§12) — ohne Key läuft automatisch
+# der regelbasierte Demo-Client (siehe oben)
 export HV_ANTHROPIC_API_KEY=sk-...
 
 # Server starten
 uvicorn app.main:app --reload
 ```
+
+### Setup — Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Die GUI läuft auf `http://localhost:5173` und erwartet das Backend auf
+`http://localhost:8000` (CORS ist dafür in `app/main.py` freigeschaltet).
+Ein anderer Backend-Host lässt sich per `VITE_API_BASE_URL` überschreiben.
 
 ### Prüfen
 
@@ -111,9 +138,18 @@ Siehe `backend/app/agent/`:
 - `policy.py` — zentrale Freigabe-Policy (FR-HITL-2)
 - `freigabe_service.py` — Freigabe-Commit/-Ablehnung (FR-HITL-1/5/8)
 
+## Web-GUI
+
+Siehe `frontend/src/`:
+- `pages/FallInbox.tsx` — UI-1
+- `pages/FreigabeQueue.tsx` — UI-2
+- `pages/FallDetail.tsx` — UI-3 (Trace-Timeline)
+- `pages/Stammdaten.tsx` — UI-4
+- `pages/Postfach.tsx` — UI-5 (Postfach + Outbox)
+- `api.ts` / `types.ts` — schlanker API-Client + Typen, gespiegelt aus den
+  Backend-Modellen
+
 ## Nächste Phasen
 
-- Phase 4: Web-GUI (Fall-Inbox, Freigabe-Queue, Fall-Detail mit Trace,
-  Stammdatenpflege, simuliertes Postfach)
 - Phase 5: echte RAG-Vektorsuche über die Dokumentensammlung
 - Phase 6: echter IMAP/SMTP-Adapter, weitere Anliegen-Typen
