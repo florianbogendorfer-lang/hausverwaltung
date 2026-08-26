@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+// Produktion: Frontend + Backend laufen im selben Docker-Container hinter
+// demselben Origin, API-Routen liegen unter /api (siehe backend/app/main.py).
+// Lokaler Dev-Modus überschreibt das via frontend/.env.development.
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export class ApiFehler extends Error {
   status: number;

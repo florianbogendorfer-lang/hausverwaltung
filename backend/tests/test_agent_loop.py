@@ -20,7 +20,7 @@ client = TestClient(app)
 
 def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
     response = client.post(
-        "/postfach/eingang",
+        "/api/postfach/eingang",
         json={
             "von": "erika.musterfrau@example.test",
             "betreff": "Türschloss defekt",
@@ -44,7 +44,7 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
 
     fall_id = fall["id"]
 
-    trace_response = client.get(f"/faelle/{fall_id}/trace")
+    trace_response = client.get(f"/api/faelle/{fall_id}/trace")
     assert trace_response.status_code == 200
     trace = trace_response.json()
     phasen = [t["phase"] for t in trace]
@@ -55,7 +55,7 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
     modelle_im_trace = {t["modell"] for t in trace if t["modell"]}
     assert modelle_im_trace, "mindestens ein Trace-Eintrag sollte das verwendete Modell nennen"
 
-    nachrichten_response = client.get(f"/faelle/{fall_id}/nachrichten")
+    nachrichten_response = client.get(f"/api/faelle/{fall_id}/nachrichten")
     assert nachrichten_response.status_code == 200
     nachrichten = nachrichten_response.json()
     ausgehende = [n for n in nachrichten if n["richtung"] == "ausgehend"]
@@ -63,14 +63,14 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
     assert ausgehende[0]["status"] == NachrichtStatus.entwurf.value
     assert "Termin" in ausgehende[0]["inhalt"] or "Schloss" in ausgehende[0]["inhalt"]
 
-    aktionen_response = client.get(f"/faelle/{fall_id}/aktionen")
+    aktionen_response = client.get(f"/api/faelle/{fall_id}/aktionen")
     assert aktionen_response.status_code == 200
     aktionsarten = {a["aktionsart"] for a in aktionen_response.json()}
     assert "fall:angelegt" in aktionsarten
     assert "nachricht:entwurf_erstellt" in aktionsarten
     assert "freigabe:angefordert" in aktionsarten
 
-    freigaben_response = client.get("/freigaben")
+    freigaben_response = client.get("/api/freigaben")
     assert freigaben_response.status_code == 200
     offene_freigaben = [f for f in freigaben_response.json() if f["fall_id"] == fall_id]
     assert len(offene_freigaben) == 1
@@ -83,7 +83,7 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
 
 def test_unklares_anliegen_wird_eskaliert():
     response = client.post(
-        "/postfach/eingang",
+        "/api/postfach/eingang",
         json={
             "von": "unbekannt@example.test",
             "betreff": "Frage",
@@ -94,6 +94,6 @@ def test_unklares_anliegen_wird_eskaliert():
     fall = response.json()
     assert fall["status"] == FallStatus.eskaliert.value
 
-    aktionen_response = client.get(f"/faelle/{fall['id']}/aktionen")
+    aktionen_response = client.get(f"/api/faelle/{fall['id']}/aktionen")
     aktionsarten = {a["aktionsart"] for a in aktionen_response.json()}
     assert "fall:eskaliert" in aktionsarten

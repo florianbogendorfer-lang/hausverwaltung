@@ -85,29 +85,33 @@ npm run dev
 ```
 
 Die GUI läuft auf `http://localhost:5173` und erwartet das Backend auf
-`http://localhost:8000` (CORS ist dafür in `app/main.py` freigeschaltet).
-Ein anderer Backend-Host lässt sich per `VITE_API_BASE_URL` überschreiben.
+`http://localhost:8000/api` (Default aus `frontend/.env.development`, CORS
+ist dafür in `app/main.py` freigeschaltet). Ein anderer Backend-Host lässt
+sich per `VITE_API_BASE_URL` überschreiben.
 
 ### Prüfen
 
+Alle API-Routen liegen unter `/api` (nur `/health` liegt auf Root-Ebene) —
+siehe [Deployment](#deployment-clever-cloud) für den Hintergrund.
+
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/objekte
-curl http://localhost:8000/dienstleister?gewerk=schlosser
+curl http://localhost:8000/api/objekte
+curl http://localhost:8000/api/dienstleister?gewerk=schlosser
 
 # Referenzfall „Türschloss defekt" einspielen
-curl -X POST http://localhost:8000/postfach/eingang \
+curl -X POST http://localhost:8000/api/postfach/eingang \
   -H "Content-Type: application/json" \
   -d '{"von":"erika.musterfrau@example.test","betreff":"Türschloss defekt","inhalt":"Das Türschloss meiner Wohnung in der Musterstraße 5 ist kaputt. Erika Musterfrau"}'
 
 # Trace des erzeugten Falls ansehen (Fall-Id aus der Antwort oben)
-curl http://localhost:8000/faelle/1/trace
+curl http://localhost:8000/api/faelle/1/trace
 
 # Offene Freigabe-Queue ansehen und entscheiden (Freigabe-Id aus der Liste)
-curl http://localhost:8000/freigaben
-curl -X POST http://localhost:8000/freigaben/1/freigeben \
+curl http://localhost:8000/api/freigaben
+curl -X POST http://localhost:8000/api/freigaben/1/freigeben \
   -H "Content-Type: application/json" -d '{"entscheider":"operator@example.test"}'
-curl -X POST http://localhost:8000/freigaben/1/ablehnen \
+curl -X POST http://localhost:8000/api/freigaben/1/ablehnen \
   -H "Content-Type: application/json" -d '{"entscheider":"operator@example.test","grund":"..."}'
 ```
 
@@ -148,6 +152,45 @@ Siehe `frontend/src/`:
 - `pages/Postfach.tsx` — UI-5 (Postfach + Outbox)
 - `api.ts` / `types.ts` — schlanker API-Client + Typen, gespiegelt aus den
   Backend-Modellen
+
+## Deployment (Clever Cloud)
+
+Das Repo enthält ein Root-`Dockerfile` (Multi-Stage: baut `frontend/` und
+liefert es über FastAPI aus demselben Container aus, siehe
+`backend/app/main.py`/`FRONTEND_DIST`) sowie `docker-entrypoint.sh`
+(Migrationen + Server-Start). Alle API-Routen liegen unter `/api`, damit
+sie nicht mit den React-Router-Pfaden (`/faelle`, `/freigaben`, …)
+kollidieren, wenn beides aus demselben Origin kommt.
+
+**Vorgehen in der Clever-Cloud-Konsole:**
+
+1. Neue App anlegen, Typ **„Docker"** wählen, das GitHub-Repo
+   `florianbogendorfer-lang/hausverwaltung` (Branch der Wahl) verbinden.
+2. Ein **PostgreSQL-Add-on** erstellen und mit der App verlinken — Clever
+   Cloud injiziert dadurch automatisch `POSTGRESQL_ADDON_URI`, die der
+   `docker-entrypoint.sh` beim Start in `HV_DATABASE_URL`
+   (Schema `postgresql+psycopg://`) übersetzt. Kein manuelles Kopieren
+   nötig.
+3. Optional als Umgebungsvariable setzen: `HV_ANTHROPIC_API_KEY` (ohne
+   Key läuft automatisch der regelbasierte `DemoLLMClient`, siehe oben).
+4. `PORT` wird von Clever Cloud automatisch injiziert, der Container
+   bindet daran (`docker-entrypoint.sh`, Fallback `8080` für lokale Tests).
+5. Deploy auslösen — beim Containerstart laufen die Alembic-Migrationen
+   automatisch (`alembic upgrade head`), danach startet Uvicorn.
+
+**Lokal testen** (baut denselben Container, den Clever Cloud baut):
+
+```bash
+docker build -t hv-agent .
+docker run -p 8080:8080 -e HV_DATABASE_URL=sqlite:///./test.db hv-agent
+# Browser: http://localhost:8080  ·  curl http://localhost:8080/health
+```
+
+Falls das **Anlegen** der App in Clever Cloud weiterhin blockiert (nicht
+nur der Build/Deploy fehlschlägt), liegt das erfahrungsgemäß an der
+GitHub-App-Repo-Freigabe auf Clever-Cloud-Seite (Organisation/Repo nicht
+für die Clever-Cloud-GitHub-Integration freigegeben) — das ist außerhalb
+dieses Repos zu prüfen, nicht code-seitig lösbar.
 
 ## Nächste Phasen
 

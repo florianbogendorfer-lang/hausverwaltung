@@ -13,7 +13,7 @@ def test_health():
 
 
 def test_objekte_liste():
-    response = client.get("/objekte")
+    response = client.get("/api/objekte")
     assert response.status_code == 200
     daten = response.json()
     assert len(daten) == 2
@@ -24,24 +24,24 @@ def test_objekte_liste():
 
 
 def test_objekt_details_404():
-    response = client.get("/objekte/9999")
+    response = client.get("/api/objekte/9999")
     assert response.status_code == 404
 
 
 def test_kontakte_liste():
-    response = client.get("/kontakte")
+    response = client.get("/api/kontakte")
     assert response.status_code == 200
     assert len(response.json()) == 5
 
 
 def test_dienstleister_liste():
-    response = client.get("/dienstleister")
+    response = client.get("/api/dienstleister")
     assert response.status_code == 200
     assert len(response.json()) == 5
 
 
 def test_dienstleister_filter_nach_gewerk():
-    response = client.get("/dienstleister", params={"gewerk": Gewerk.schlosser.value})
+    response = client.get("/api/dienstleister", params={"gewerk": Gewerk.schlosser.value})
     assert response.status_code == 200
     daten = response.json()
     assert len(daten) == 2
@@ -52,7 +52,7 @@ def test_dienstleister_filter_nach_gewerk():
 
 
 def test_dokumente_liste():
-    response = client.get("/dokumente")
+    response = client.get("/api/dokumente")
     assert response.status_code == 200
     daten = response.json()
     assert len(daten) == 3

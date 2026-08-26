@@ -28,9 +28,9 @@ TUERSCHLOSS_MAIL = {
 
 
 def _fall_mit_offener_freigabe_erzeugen():
-    fall = client.post("/postfach/eingang", json=TUERSCHLOSS_MAIL).json()
+    fall = client.post("/api/postfach/eingang", json=TUERSCHLOSS_MAIL).json()
     freigabe = next(
-        f for f in client.get("/freigaben").json() if f["fall_id"] == fall["id"]
+        f for f in client.get("/api/freigaben").json() if f["fall_id"] == fall["id"]
     )
     return fall, freigabe
 
@@ -39,7 +39,7 @@ def test_freigeben_sendet_simuliert_und_beauftragt_dienstleister():
     fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
 
     response = client.post(
-        f"/freigaben/{freigabe['id']}/freigeben",
+        f"/api/freigaben/{freigabe['id']}/freigeben",
         json={"entscheider": "operator@example.test"},
     )
     assert response.status_code == 200
@@ -47,15 +47,15 @@ def test_freigeben_sendet_simuliert_und_beauftragt_dienstleister():
     assert entschieden["status"] == "freigegeben"
     assert entschieden["entscheider"] == "operator@example.test"
 
-    fall_response = client.get(f"/faelle/{fall['id']}").json()
+    fall_response = client.get(f"/api/faelle/{fall['id']}").json()
     assert fall_response["status"] == FallStatus.dienstleister_beauftragt.value
 
-    nachrichten = client.get(f"/faelle/{fall['id']}/nachrichten").json()
+    nachrichten = client.get(f"/api/faelle/{fall['id']}/nachrichten").json()
     ausgehende = next(n for n in nachrichten if n["richtung"] == "ausgehend")
     assert ausgehende["status"] == NachrichtStatus.gesendet_simuliert.value
 
     aktionsarten = {
-        a["aktionsart"] for a in client.get(f"/faelle/{fall['id']}/aktionen").json()
+        a["aktionsart"] for a in client.get(f"/api/faelle/{fall['id']}/aktionen").json()
     }
     assert "freigabe:erteilt" in aktionsarten
 
@@ -64,12 +64,12 @@ def test_freigabe_kann_nicht_doppelt_committet_werden():
     _, freigabe = _fall_mit_offener_freigabe_erzeugen()
 
     erster = client.post(
-        f"/freigaben/{freigabe['id']}/freigeben", json={"entscheider": "operator@example.test"}
+        f"/api/freigaben/{freigabe['id']}/freigeben", json={"entscheider": "operator@example.test"}
     )
     assert erster.status_code == 200
 
     zweiter = client.post(
-        f"/freigaben/{freigabe['id']}/freigeben", json={"entscheider": "operator@example.test"}
+        f"/api/freigaben/{freigabe['id']}/freigeben", json={"entscheider": "operator@example.test"}
     )
     assert zweiter.status_code == 409
 
@@ -79,13 +79,13 @@ def test_bearbeiten_und_freigeben_uebernimmt_geaenderten_text():
 
     neuer_text = "Bitte kontaktieren Sie den Mieter direkt zur Terminvereinbarung."
     response = client.post(
-        f"/freigaben/{freigabe['id']}/freigeben",
+        f"/api/freigaben/{freigabe['id']}/freigeben",
         json={"entscheider": "operator@example.test", "bearbeiteter_text": neuer_text},
     )
     assert response.status_code == 200
     assert response.json()["status"] == "bearbeitet_freigegeben"
 
-    nachrichten = client.get(f"/faelle/{fall['id']}/nachrichten").json()
+    nachrichten = client.get(f"/api/faelle/{fall['id']}/nachrichten").json()
     ausgehende = next(n for n in nachrichten if n["richtung"] == "ausgehend")
     assert ausgehende["inhalt"] == neuer_text
     assert ausgehende["status"] == NachrichtStatus.gesendet_simuliert.value
@@ -95,7 +95,7 @@ def test_ablehnen_setzt_nachricht_und_fall_zurueck():
     fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
 
     response = client.post(
-        f"/freigaben/{freigabe['id']}/ablehnen",
+        f"/api/freigaben/{freigabe['id']}/ablehnen",
         json={"entscheider": "operator@example.test", "grund": "Falscher Dienstleister ausgewählt."},
     )
     assert response.status_code == 200
@@ -103,20 +103,20 @@ def test_ablehnen_setzt_nachricht_und_fall_zurueck():
     assert abgelehnt["status"] == "abgelehnt"
     assert abgelehnt["ablehnungsgrund"] == "Falscher Dienstleister ausgewählt."
 
-    fall_response = client.get(f"/faelle/{fall['id']}").json()
+    fall_response = client.get(f"/api/faelle/{fall['id']}").json()
     assert fall_response["status"] == FallStatus.eingeordnet.value
 
-    nachrichten = client.get(f"/faelle/{fall['id']}/nachrichten").json()
+    nachrichten = client.get(f"/api/faelle/{fall['id']}/nachrichten").json()
     ausgehende = next(n for n in nachrichten if n["richtung"] == "ausgehend")
     assert ausgehende["status"] == NachrichtStatus.abgelehnt.value
 
 
 def test_freigaben_liste_zeigt_standardmaessig_nur_offene():
     fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
-    client.post(f"/freigaben/{freigabe['id']}/ablehnen", json={"entscheider": "op", "grund": "x"})
+    client.post(f"/api/freigaben/{freigabe['id']}/ablehnen", json={"entscheider": "op", "grund": "x"})
 
-    offene = client.get("/freigaben").json()
+    offene = client.get("/api/freigaben").json()
     assert freigabe["id"] not in [f["id"] for f in offene]
 
-    alle = client.get("/freigaben", params={"nur_offene": False}).json()
+    alle = client.get("/api/freigaben", params={"nur_offene": False}).json()
     assert freigabe["id"] in [f["id"] for f in alle]

@@ -10,6 +10,7 @@ dependencies = [
     "alembic>=1.13",
     "pydantic-settings>=2.4",
     "anthropic>=0.40",
+    "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]
