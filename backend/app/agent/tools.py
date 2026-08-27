@@ -64,18 +64,25 @@ def fall_einordnen(router: ModelRouter, mail: EingehendeMail) -> tuple[Einordnun
     return einordnung, antwort.modell
 
 
+def _adress_normalisiert(text: str) -> str:
+    """Normalisiert Schreibvarianten ('ß' vs. 'ss', Groß-/Kleinschreibung),
+    damit z. B. 'Musterstrasse' und 'Musterstraße' als gleich gelten."""
+    return text.casefold().replace("ß", "ss")
+
+
 def objekt_suchen(session: Session, suchbegriff: str):
-    """Objekt zu Adresse/Melder finden."""
+    """Objekt zu Adresse/Melder finden. Vergleicht normalisiert (§ vs. ss,
+    Groß-/Kleinschreibung), da sowohl Mailtext als auch Stammdaten je nach
+    Quelle unterschiedliche Schreibweisen enthalten können."""
     from app.models import Objekt
 
-    muster = f"%{suchbegriff}%"
-    return list(
-        session.exec(
-            select(Objekt).where(
-                (Objekt.adresse.like(muster)) | (Objekt.bezeichnung.like(muster))
-            )
-        ).all()
-    )
+    ziel = _adress_normalisiert(suchbegriff)
+    alle = session.exec(select(Objekt)).all()
+    return [
+        objekt
+        for objekt in alle
+        if ziel in _adress_normalisiert(objekt.adresse) or ziel in _adress_normalisiert(objekt.bezeichnung)
+    ]
 
 
 def kontakt_suchen(session: Session, suchbegriff: str) -> Optional[Kontakt]:

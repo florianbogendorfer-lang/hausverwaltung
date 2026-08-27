@@ -40,8 +40,15 @@ class DemoLLMClient:
                 break
 
         von_treffer = re.search(r"Von:\s*(.+)", prompt)
+        # Generische Adress-Erkennung statt fest einprogrammierter
+        # Straßennamen — erkennt jede „Straße/Gasse/Weg/Allee/Platz
+        # <Hausnummer>"- oder „Am/An der/Beim <Name> <Hausnummer>"-Adresse,
+        # damit neu in den Stammdaten angelegte Objekte ebenfalls gefunden
+        # werden (statt nur die ursprünglich seed-eigenen zwei Adressen).
         objekt_treffer = re.search(
-            r"(musterstra(?:ss|ß)e\s*\d+|beispielgasse\s*\d+)", prompt, re.IGNORECASE
+            r"(?:Am|An der|Beim)\s+[A-ZÄÖÜ][\wäöüßÄÖÜ]*\s*\d+"
+            r"|[A-ZÄÖÜ][\wäöüßÄÖÜ]*(?:stra(?:ss|ß)e|gasse|weg|allee|platz)\s*\d+",
+            prompt,
         )
 
         konfidenz = 0.85 if gewerk else 0.2
