@@ -15,11 +15,21 @@ from app.models.dienstleister import Gewerk
 
 
 def _ticket_nummer_erzeugen() -> str:
-    """Kunden-Ticketnummer — dient zugleich als Zugriffs-Token für die
-    unauthentifizierte Kundenansicht (`GET /api/ticket/{nummer}`): kein
-    Login im Prototyp (§0), daher muss die Nummer unerratbar sein statt
-    einer fortlaufenden ID."""
+    """Kurze, für Menschen les-/nennbare Referenznummer (E-Mail-Betreff,
+    Kundenansicht) — NICHT der Zugriffsschutz, siehe `zugriffstoken`."""
     return f"HV-{secrets.token_hex(4).upper()}"
+
+
+def _zugriffstoken_erzeugen() -> str:
+    """Eigenständiges Zugriffs-Token für die unauthentifizierte
+    Kundenansicht (`GET /api/ticket/{token}`, kein Login im Prototyp,
+    §0) — getrennt von der kurzen `ticket_nummer`, weil die als
+    Referenznummer für Menschen lesbar/kurz bleiben soll, während ein
+    Zugriffs-Token laut OWASP/W3C-Empfehlung für Capability-URLs
+    mindestens ~120 Bit Entropie braucht (32 Bit reichen nicht, um
+    Erraten/Durchprobieren praktisch auszuschließen). token_urlsafe(24)
+    liefert 192 Bit."""
+    return secrets.token_urlsafe(24)
 
 
 class FallTyp(str, enum.Enum):
@@ -44,6 +54,7 @@ class Fall(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     ticket_nummer: str = Field(default_factory=_ticket_nummer_erzeugen, unique=True, index=True)
+    zugriffstoken: str = Field(default_factory=_zugriffstoken_erzeugen, unique=True, index=True)
     typ: FallTyp
     gewerk: Optional[Gewerk] = None
     objekt_id: Optional[int] = Field(default=None, foreign_key="objekte.id")

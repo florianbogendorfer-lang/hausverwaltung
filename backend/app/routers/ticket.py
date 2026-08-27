@@ -1,11 +1,14 @@
 """Öffentliche, unauthentifizierte Kundenansicht eines Falls (§0-Wunsch:
 Kunden sollen ihr Ticket ansehen können, verknüpft mit dem Mailverkehr).
 
-Kein Login im Prototyp — Zugriff läuft ausschließlich über die unerratbare
-`ticket_nummer` als Capability-Token (siehe `app.models.fall`). Die Antwort
-gibt bewusst nur einen kundengerechten Ausschnitt zurück: Klartext-Status
-statt interner Statuswerte, und nur die Korrespondenz, die den Kunden
-selbst betrifft — die interne Beauftragungsmail an den Dienstleister z. B.
+Kein Login im Prototyp — Zugriff läuft über `zugriffstoken`
+(192 Bit Entropie, `secrets.token_urlsafe`), NICHT über die kurze
+`ticket_nummer` (nur 32 Bit — als Referenznummer für Menschen gedacht,
+nicht als Zugriffsschutz; siehe app.models.fall für die Begründung nach
+OWASP/W3C-Empfehlungen für Capability-URLs). Die Antwort gibt bewusst
+nur einen kundengerechten Ausschnitt zurück: Klartext-Status statt
+interner Statuswerte, und nur die Korrespondenz, die den Kunden selbst
+betrifft — die interne Beauftragungsmail an den Dienstleister z. B.
 bleibt außen vor."""
 
 from datetime import datetime
@@ -63,9 +66,9 @@ def _kundenkorrespondenz(nachrichten: list[Nachricht]) -> list[Nachricht]:
     ]
 
 
-@router.get("/{ticket_nummer}", response_model=TicketAnsicht)
-def ticket_ansehen(ticket_nummer: str, session: Session = Depends(get_session)) -> TicketAnsicht:
-    fall = session.exec(select(Fall).where(Fall.ticket_nummer == ticket_nummer)).first()
+@router.get("/{zugriffstoken}", response_model=TicketAnsicht)
+def ticket_ansehen(zugriffstoken: str, session: Session = Depends(get_session)) -> TicketAnsicht:
+    fall = session.exec(select(Fall).where(Fall.zugriffstoken == zugriffstoken)).first()
     if fall is None or fall.geloescht:
         raise HTTPException(status_code=404, detail="Ticket nicht gefunden")
 

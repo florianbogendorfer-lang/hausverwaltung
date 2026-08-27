@@ -17,7 +17,7 @@ def _erzeuge_fall() -> dict:
         session.add(fall)
         session.commit()
         session.refresh(fall)
-        return {"id": fall.id, "ticket_nummer": fall.ticket_nummer}
+        return {"id": fall.id, "ticket_nummer": fall.ticket_nummer, "zugriffstoken": fall.zugriffstoken}
 
 
 def test_geloeschter_fall_verschwindet_aus_liste_und_details():
@@ -49,7 +49,7 @@ def test_geloeschtes_ticket_gibt_404():
     fall = _erzeuge_fall()
     client.delete(f"/api/faelle/{fall['id']}")
 
-    response = client.get(f"/api/ticket/{fall['ticket_nummer']}")
+    response = client.get(f"/api/ticket/{fall['zugriffstoken']}")
     assert response.status_code == 404
 
 

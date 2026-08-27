@@ -1,8 +1,10 @@
-"""Öffentliche Kundenansicht (`GET /api/ticket/{ticket_nummer}`): eine
-Ticketnummer wird pro Fall vergeben, dient als Zugriffs-Token (kein Login
-im Prototyp) und die Antwort zeigt nur kundengerechte Klartext-Infos plus
-die den Kunden betreffende Korrespondenz — nicht die interne
-Beauftragungsmail an den Dienstleister."""
+"""Öffentliche Kundenansicht (`GET /api/ticket/{zugriffstoken}`): ein
+hochentropisches Zugriffs-Token wird pro Fall vergeben, dient als
+Zugriffsschutz (kein Login im Prototyp) und die Antwort zeigt nur
+kundengerechte Klartext-Infos plus die den Kunden betreffende
+Korrespondenz — nicht die interne Beauftragungsmail an den
+Dienstleister. Die kurze `ticket_nummer` ist nur noch eine für Menschen
+lesbare Referenznummer, kein Zugriffsschutz mehr."""
 
 from fastapi.testclient import TestClient
 
@@ -44,7 +46,7 @@ def test_fall_hat_eindeutige_ticket_nummer():
 
 def test_ticket_ansehen_zeigt_klartext_status_und_eigene_korrespondenz():
     fall = _tuerschloss_fall()
-    response = client.get(f"/api/ticket/{fall['ticket_nummer']}")
+    response = client.get(f"/api/ticket/{fall['zugriffstoken']}")
     assert response.status_code == 200
     daten = response.json()
 
@@ -70,6 +72,6 @@ def test_beauftragungsmail_traegt_ticket_nummer_im_betreff():
     assert ausgehende[0]["betreff"].startswith(f"[{fall['ticket_nummer']}]")
 
 
-def test_unbekannte_ticket_nummer_gibt_404():
-    response = client.get("/api/ticket/HV-DOESNOTEXIST")
+def test_unbekanntes_zugriffstoken_gibt_404():
+    response = client.get("/api/ticket/dieses-token-existiert-nicht")
     assert response.status_code == 404

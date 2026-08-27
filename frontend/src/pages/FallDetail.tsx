@@ -148,7 +148,7 @@ export default function FallDetail() {
           <p className="mt-1 text-xs text-slate-400">
             Ticket{" "}
             <a
-              href={`/ticket/${fall.ticket_nummer}`}
+              href={`/ticket/${fall.zugriffstoken}`}
               target="_blank"
               rel="noreferrer"
               className="font-medium text-indigo-600 hover:underline"

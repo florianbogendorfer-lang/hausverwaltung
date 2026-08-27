@@ -9,19 +9,19 @@ import { alsUtcDatum } from "../zeit";
 // (Board/Postfach/Stammdaten): Kunden erreichen diese Seite über den Link
 // in ihrer E-Mail, nicht über die Operator-Oberfläche.
 export default function Ticket() {
-  const { ticketNummer } = useParams();
+  const { zugriffstoken } = useParams();
   const [ticket, setTicket] = useState<TicketAnsicht | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ticketNummer) return;
+    if (!zugriffstoken) return;
     api
-      .get<TicketAnsicht>(`/ticket/${ticketNummer}`)
+      .get<TicketAnsicht>(`/ticket/${zugriffstoken}`)
       .then(setTicket)
       .catch(() =>
         setFehler("Dieses Ticket wurde nicht gefunden. Bitte prüfen Sie den Link aus Ihrer E-Mail."),
       );
-  }, [ticketNummer]);
+  }, [zugriffstoken]);
 
   return (
     <div className="min-h-screen bg-slate-50">

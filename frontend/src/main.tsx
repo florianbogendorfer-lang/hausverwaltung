@@ -19,7 +19,7 @@ createRoot(document.getElementById("root")!).render(
         <Routes>
           {/* Öffentliche Kundenansicht — bewusst außerhalb von <App />, ohne
               die interne Operator-Navigation und ohne Login. */}
-          <Route path="ticket/:ticketNummer" element={<Ticket />} />
+          <Route path="ticket/:zugriffstoken" element={<Ticket />} />
           <Route path="login" element={<Login />} />
           <Route element={<App />}>
             <Route index element={<Board />} />

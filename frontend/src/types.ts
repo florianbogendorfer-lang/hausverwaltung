@@ -75,6 +75,7 @@ export interface Dokument {
 export interface Fall {
   id: number;
   ticket_nummer: string;
+  zugriffstoken: string;
   typ: FallTyp;
   gewerk?: Gewerk | null;
   objekt_id?: number | null;
