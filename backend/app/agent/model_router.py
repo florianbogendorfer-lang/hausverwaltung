@@ -58,6 +58,14 @@ class AnthropicLLMClient:
     def complete(
         self, modell: str, system: str, prompt: str, temperature: float = 0.0
     ) -> LLMAntwort:
+        # `temperature` (und andere Sampling-Parameter) werden von der
+        # aktuellen Claude-Modellgeneration nicht mehr entgegengenommen
+        # (400 Bad Request) — Determinismus für die strukturierten Schritte
+        # (FR-AGENT-3) kommt stattdessen aus dem JSON-Schema + der
+        # Retry-Validierung in `complete_structured`. Der Parameter bleibt
+        # hier nur für die `LLMClient`-Protokoll-Kompatibilität (DemoLLMClient
+        # nutzt ihn für deterministische Testantworten) und wird nicht an
+        # die Anthropic-API weitergereicht.
         client = self._get_client()
         start = time.monotonic()
         response = client.messages.create(
@@ -65,10 +73,6 @@ class AnthropicLLMClient:
             max_tokens=1024,
             system=system,
             messages=[{"role": "user", "content": prompt}],
-            # `temperature` ist im aktuell installierten SDK-Stub nicht
-            # typisiert, wird von der Messages-API aber weiterhin
-            # akzeptiert — daher über extra_body statt Kwarg (FR-AGENT-3).
-            extra_body={"temperature": temperature},
         )
         dauer_ms = int((time.monotonic() - start) * 1000)
         text = "".join(
