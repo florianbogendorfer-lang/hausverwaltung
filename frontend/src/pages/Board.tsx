@@ -172,11 +172,11 @@ export default function Board() {
         </div>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {SPALTEN.map((spalte) => {
           const karten = gefiltert.filter((f) => spalte.status.includes(f.status));
           return (
-            <div key={spalte.titel} className="flex w-72 shrink-0 flex-col">
+            <div key={spalte.titel} className="flex min-w-0 flex-col">
               <div
                 className={`mb-3 rounded-lg border px-3 py-2.5 ${
                   spalte.aktion

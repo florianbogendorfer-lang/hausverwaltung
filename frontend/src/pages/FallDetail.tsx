@@ -138,6 +138,18 @@ export default function FallDetail() {
             {fall.gewerk && <> · {fall.gewerk}</>}
             {fall.konfidenz != null && <> · Konfidenz {(fall.konfidenz * 100).toFixed(0)}%</>}
           </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Ticket{" "}
+            <a
+              href={`/ticket/${fall.ticket_nummer}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-indigo-600 hover:underline"
+              title="Kundenansicht in neuem Tab öffnen"
+            >
+              {fall.ticket_nummer}
+            </a>
+          </p>
         </div>
         <FallStatusBadge status={fall.status} />
       </div>

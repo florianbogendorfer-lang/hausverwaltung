@@ -35,6 +35,7 @@ from app.routers import (
     objekte,
     outbox,
     postfach,
+    ticket,
 )
 from app.routers.postfach import get_dokumenten_index
 
@@ -77,6 +78,7 @@ app.include_router(faelle.router, prefix="/api")
 app.include_router(postfach.router, prefix="/api")
 app.include_router(freigaben.router, prefix="/api")
 app.include_router(outbox.router, prefix="/api")
+app.include_router(ticket.router, prefix="/api")
 
 
 @app.get("/health", tags=["system"])

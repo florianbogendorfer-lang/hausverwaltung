@@ -7,11 +7,15 @@ import Board from "./pages/Board.tsx";
 import FallDetail from "./pages/FallDetail.tsx";
 import Postfach from "./pages/Postfach.tsx";
 import Stammdaten from "./pages/Stammdaten.tsx";
+import Ticket from "./pages/Ticket.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
+        {/* Öffentliche Kundenansicht — bewusst außerhalb von <App />, ohne
+            die interne Operator-Navigation. */}
+        <Route path="ticket/:ticketNummer" element={<Ticket />} />
         <Route element={<App />}>
           <Route index element={<Board />} />
           <Route path="faelle/:fallId" element={<FallDetail />} />

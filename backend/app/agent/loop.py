@@ -173,7 +173,7 @@ def bearbeite_eingehende_mail(
         fall.id,
         von=HAUSVERWALTUNG_ABSENDER,
         an=dienstleister.email,
-        betreff=f"Beauftragung: {mail.betreff}",
+        betreff=f"[{fall.ticket_nummer}] Beauftragung: {mail.betreff}",
         zweck=f"{dienstleister.name} ({einordnung.gewerk.value}) mit der Behebung beauftragen",
         kontext=kontext,
     )

@@ -5,12 +5,21 @@ Auslösung) wird erst in Phase 2/3 implementiert — hier nur das Schema.
 """
 
 import enum
+import secrets
 from datetime import datetime
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
 from app.models.dienstleister import Gewerk
+
+
+def _ticket_nummer_erzeugen() -> str:
+    """Kunden-Ticketnummer — dient zugleich als Zugriffs-Token für die
+    unauthentifizierte Kundenansicht (`GET /api/ticket/{nummer}`): kein
+    Login im Prototyp (§0), daher muss die Nummer unerratbar sein statt
+    einer fortlaufenden ID."""
+    return f"HV-{secrets.token_hex(4).upper()}"
 
 
 class FallTyp(str, enum.Enum):
@@ -34,6 +43,7 @@ class Fall(SQLModel, table=True):
     __tablename__ = "faelle"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    ticket_nummer: str = Field(default_factory=_ticket_nummer_erzeugen, unique=True, index=True)
     typ: FallTyp
     gewerk: Optional[Gewerk] = None
     objekt_id: Optional[int] = Field(default=None, foreign_key="objekte.id")

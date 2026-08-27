@@ -66,6 +66,7 @@ export interface Dokument {
 
 export interface Fall {
   id: number;
+  ticket_nummer: string;
   typ: FallTyp;
   gewerk?: Gewerk | null;
   objekt_id?: number | null;
@@ -112,6 +113,22 @@ export interface Aktion {
   aktionsart: string;
   details: Record<string, unknown>;
   freigabe_id?: number | null;
+}
+
+export interface TicketNachricht {
+  richtung: NachrichtRichtung;
+  betreff: string;
+  inhalt: string;
+  erstellt_am: string;
+}
+
+export interface TicketAnsicht {
+  ticket_nummer: string;
+  betreff: string;
+  status_text: string;
+  erstellt_am: string;
+  geaendert_am: string;
+  nachrichten: TicketNachricht[];
 }
 
 export interface Freigabe {
