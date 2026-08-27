@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session
 
-from app.auth import aktueller_benutzer, passwort_pruefen, sitzung_anlegen, sitzung_beenden
+from app.auth import aktueller_benutzer, login_pruefen, sitzung_anlegen, sitzung_beenden
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle
 
@@ -31,8 +31,12 @@ def _antwort(benutzer: Benutzer) -> BenutzerAntwort:
 def login(
     eingabe: LoginEingabe, response: Response, session: Session = Depends(get_session)
 ) -> BenutzerAntwort:
-    benutzer = session.exec(select(Benutzer).where(Benutzer.email == eingabe.email)).first()
-    if benutzer is None or not passwort_pruefen(eingabe.passwort, benutzer.passwort_hash):
+    benutzer = login_pruefen(session, eingabe.email, eingabe.passwort)
+    if benutzer is None:
+        # Bewusst dieselbe Meldung für "falsches Passwort", "Konto
+        # existiert nicht" und "Konto vorübergehend gesperrt" — kein
+        # Informationsleck über den Grund (OWASP Authentication Cheat
+        # Sheet, User-Enumeration-Vermeidung).
         raise HTTPException(status_code=401, detail="E-Mail oder Passwort falsch")
     sitzung_anlegen(session, benutzer, response)
     return _antwort(benutzer)

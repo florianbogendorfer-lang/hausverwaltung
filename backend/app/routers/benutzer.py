@@ -2,7 +2,7 @@
 Löschen weiterer Konten)."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.auth import admin_erforderlich, passwort_hashen
@@ -11,11 +11,17 @@ from app.models import Benutzer, BenutzerRolle, Sitzung
 
 router = APIRouter(prefix="/benutzer", tags=["benutzer"], dependencies=[Depends(admin_erforderlich)])
 
+# OWASP Authentication Cheat Sheet: ohne MFA mindestens 15 Zeichen statt
+# Komplexitätsregeln (Groß-/Kleinschreibung/Sonderzeichen erzwingen bringt
+# nachweislich wenig und verleitet zu vorhersehbaren Mustern). Serverseitig
+# durchgesetzt — eine reine Frontend-Validierung wäre trivial umgehbar.
+PASSWORT_MIN_LAENGE = 15
+
 
 class BenutzerEingabe(BaseModel):
     name: str
     email: str
-    passwort: str
+    passwort: str = Field(min_length=PASSWORT_MIN_LAENGE, max_length=128)
     rolle: BenutzerRolle = BenutzerRolle.user
 
 

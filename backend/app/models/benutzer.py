@@ -25,6 +25,11 @@ class Benutzer(SQLModel, table=True):
     passwort_hash: str
     rolle: BenutzerRolle = BenutzerRolle.user
     erstellt_am: datetime = Field(default_factory=datetime.utcnow)
+    # Brute-Force-Schutz (OWASP Authentication Cheat Sheet): Zähler +
+    # temporäre, exponentiell wachsende Sperre statt permanenter Sperre
+    # (die selbst zum DoS-Vektor würde) — siehe app/auth.py.
+    fehlversuche: int = 0
+    gesperrt_bis: Optional[datetime] = None
 
 
 class Sitzung(SQLModel, table=True):

@@ -76,3 +76,68 @@ def test_admin_darf_benutzer_verwalten_user_nicht(echter_login_client: TestClien
         "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
     )
     assert echter_login_client.get("/api/benutzer").status_code == 200
+
+
+def test_login_fehlermeldung_gleich_fuer_unbekannte_mail_und_falsches_passwort(
+    echter_login_client: TestClient,
+):
+    """OWASP-Vorgabe gegen User-Enumeration: identische Antwort, egal ob
+    das Konto nicht existiert oder nur das Passwort falsch ist."""
+    unbekannt = echter_login_client.post(
+        "/api/auth/login", json={"email": "gibts-nicht@example.test", "passwort": "irgendwas"}
+    )
+    falsch = echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "falsch"}
+    )
+    assert unbekannt.status_code == falsch.status_code == 401
+    assert unbekannt.json()["detail"] == falsch.json()["detail"]
+
+
+def test_benutzer_anlegen_lehnt_kurzes_passwort_ab(echter_login_client: TestClient):
+    echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
+    )
+    response = echter_login_client.post(
+        "/api/benutzer",
+        json={
+            "name": "Zu kurzes Passwort",
+            "email": "zu-kurz@example.test",
+            "passwort": "kurz1234",
+            "rolle": "user",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_login_sperrt_konto_nach_mehreren_fehlversuchen(echter_login_client: TestClient):
+    """Brute-Force-Schutz: eigenes Wegwerf-Konto, damit admin@/user@
+    für die übrigen Tests unangetastet bleiben."""
+    echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
+    )
+    passwort = "ein-ausreichend-langes-testpasswort"
+    erstellt = echter_login_client.post(
+        "/api/benutzer",
+        json={
+            "name": "Lockout-Test",
+            "email": "lockout-test@example.test",
+            "passwort": passwort,
+            "rolle": "user",
+        },
+    )
+    assert erstellt.status_code == 201
+    echter_login_client.post("/api/auth/logout")
+
+    for _ in range(5):
+        r = echter_login_client.post(
+            "/api/auth/login",
+            json={"email": "lockout-test@example.test", "passwort": "falsches-passwort"},
+        )
+        assert r.status_code == 401
+
+    # Selbst mit dem korrekten Passwort jetzt gesperrt.
+    gesperrt = echter_login_client.post(
+        "/api/auth/login",
+        json={"email": "lockout-test@example.test", "passwort": passwort},
+    )
+    assert gesperrt.status_code == 401

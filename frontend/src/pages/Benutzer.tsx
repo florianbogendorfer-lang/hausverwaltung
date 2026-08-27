@@ -152,11 +152,15 @@ export default function BenutzerVerwaltung() {
             <input
               type="password"
               required
-              minLength={6}
+              minLength={15}
               value={passwort}
               onChange={(e) => setPasswort(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
             />
+            <span className="mt-1 block text-xs text-slate-400">
+              Mindestens 15 Zeichen (OWASP-Empfehlung ohne Zwei-Faktor-Login) — lange
+              Passphrase statt Komplexitätsregeln.
+            </span>
           </label>
           <label className="text-sm">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">

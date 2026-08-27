@@ -10,6 +10,13 @@ if [ -z "$HV_DATABASE_URL" ] && [ -n "$POSTGRESQL_ADDON_URI" ]; then
   export HV_DATABASE_URL=$(echo "$POSTGRESQL_ADDON_URI" | sed -E 's#^postgres(ql)?://#postgresql+psycopg://#')
 fi
 
+# Der Docker-Deploy-Pfad läuft immer hinter Clever Clouds TLS-Terminierung
+# (nie direkt über http://) — Session-Cookie also standardmäßig mit
+# Secure-Flag versenden, ohne dass das manuell konfiguriert werden muss.
+# Ein expliziter Wert in der Umgebung (z. B. für einen Spezialfall) hat
+# weiterhin Vorrang.
+export HV_COOKIE_SECURE=${HV_COOKIE_SECURE:-true}
+
 alembic upgrade head
 
 # Idempotent (überspringt sich selbst, falls bereits Daten vorhanden) —

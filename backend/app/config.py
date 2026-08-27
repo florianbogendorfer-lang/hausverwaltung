@@ -52,5 +52,12 @@ class Settings(BaseSettings):
     smtp_passwort: str | None = None
     smtp_absender: str | None = None
 
+    # Session-Cookie nur über HTTPS versenden (OWASP Session Management).
+    # Default False, damit lokales `uvicorn --reload` über http://
+    # weiterhin funktioniert (Browser verwerfen Secure-Cookies ohne TLS
+    # stillschweigend); docker-entrypoint.sh setzt dies im Deploy-Pfad
+    # automatisch auf True, ohne dass eine manuelle Konfiguration nötig ist.
+    cookie_secure: bool = False
+
 
 settings = Settings()
