@@ -12,4 +12,10 @@ fi
 
 alembic upgrade head
 
+# Idempotent (überspringt sich selbst, falls bereits Daten vorhanden) —
+# ohne diesen Schritt bleibt die DB nach reinen Migrationen leer und die
+# Erstklassifikation findet nie ein Objekt/Kontakt/Dienstleister (§0:
+# Prototyp mit synthetischen Testdaten für den sichtbaren End-to-End-Fluss).
+python -m app.seed
+
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8080}"
