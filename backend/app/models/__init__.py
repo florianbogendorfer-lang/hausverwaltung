@@ -1,4 +1,5 @@
 from app.models.aktion import Aktion, Akteur
+from app.models.benutzer import Benutzer, BenutzerRolle, Sitzung
 from app.models.dienstleister import Dienstleister, Gewerk
 from app.models.dokument import Dokument
 from app.models.fall import Fall, FallStatus, FallTyp
@@ -9,6 +10,9 @@ from app.models.objekt import Objekt
 from app.models.trace import Trace, TracePhase
 
 __all__ = [
+    "Benutzer",
+    "BenutzerRolle",
+    "Sitzung",
     "Objekt",
     "Kontakt",
     "KontaktRolle",

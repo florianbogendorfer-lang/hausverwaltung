@@ -19,14 +19,17 @@ Dockerfile + `FRONTEND_DIST`-Block unten).
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
+from app.auth import aktueller_benutzer
 from app.db import create_db_and_tables, engine
 from app.models import Dokument
 from app.routers import (
+    auth,
+    benutzer,
     dienstleister,
     dokumente,
     faelle,
@@ -62,23 +65,35 @@ app = FastAPI(
 # Prototyp mit einem lokalen Operator (§3) — permissive CORS für die lokal
 # laufende Vite-Dev-GUI genügt, kein produktiver Härtungsanspruch. Im
 # Docker-Deploy läuft das Frontend ohnehin auf demselben Origin (kein CORS
-# nötig), diese Regel betrifft nur den lokalen Dev-Workflow.
+# nötig), diese Regel betrifft nur den lokalen Dev-Workflow. allow_credentials
+# ist nötig, damit das Session-Cookie (§0-Login) auch cross-origin (Vite-Dev-
+# Server) mitgeschickt wird — deshalb explizite Origins statt Wildcard.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(objekte.router, prefix="/api")
-app.include_router(kontakte.router, prefix="/api")
-app.include_router(dienstleister.router, prefix="/api")
-app.include_router(dokumente.router, prefix="/api")
-app.include_router(faelle.router, prefix="/api")
-app.include_router(postfach.router, prefix="/api")
-app.include_router(freigaben.router, prefix="/api")
-app.include_router(outbox.router, prefix="/api")
+# Login/Logout und die öffentliche Kundenansicht bleiben unauthentifiziert
+# erreichbar — alle übrigen Routen verlangen eine gültige Session (§0-Wunsch:
+# Nutzersystem mit Rollen statt offenem Zugriff).
+app.include_router(auth.router, prefix="/api")
 app.include_router(ticket.router, prefix="/api")
+
+_angemeldet = [Depends(aktueller_benutzer)]
+app.include_router(objekte.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(kontakte.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(dienstleister.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(dokumente.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(faelle.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(postfach.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(freigaben.router, prefix="/api", dependencies=_angemeldet)
+app.include_router(outbox.router, prefix="/api", dependencies=_angemeldet)
+# benutzer.router ist bereits intern admin_erforderlich-gated (impliziert
+# aktueller_benutzer), daher hier ohne zusätzliche Dependency.
+app.include_router(benutzer.router, prefix="/api")
 
 
 @app.get("/health", tags=["system"])

@@ -55,3 +55,5 @@ class Fall(SQLModel, table=True):
     konfidenz: Optional[float] = None
     erstellt_am: datetime = Field(default_factory=datetime.utcnow)
     geaendert_am: datetime = Field(default_factory=datetime.utcnow)
+    geloescht: bool = False
+    geloescht_am: Optional[datetime] = None

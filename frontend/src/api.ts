@@ -15,6 +15,10 @@ export class ApiFehler extends Error {
 async function anfrage<T>(pfad: string, optionen?: RequestInit): Promise<T> {
   const antwort = await fetch(`${API_BASE}${pfad}`, {
     headers: { "Content-Type": "application/json" },
+    // Session-Cookie (§0-Login) muss auch im lokalen Dev-Modus mitgeschickt
+    // werden, wo Vite-Dev-Server und Backend auf unterschiedlichen Origins
+    // laufen — in Produktion (gleicher Origin) ist das ein No-op.
+    credentials: "include",
     ...optionen,
   });
   if (!antwort.ok) {

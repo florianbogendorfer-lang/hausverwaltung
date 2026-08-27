@@ -8,8 +8,9 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
+from app.auth import passwort_hashen
 from app.db import create_db_and_tables, engine
-from app.models import Dienstleister, Dokument, Gewerk, Kontakt, KontaktRolle, Objekt
+from app.models import Benutzer, BenutzerRolle, Dienstleister, Dokument, Gewerk, Kontakt, KontaktRolle, Objekt
 
 SEED_DATA_DIR = Path(__file__).resolve().parent.parent / "seed_data"
 
@@ -19,10 +20,46 @@ def _lade_dokument_text(dateiname: str) -> str:
 
 
 def seed(session: Session) -> None:
+    """Zwei unabhängig geprüfte Idempotenz-Gates statt eines gemeinsamen —
+    Umgebungen, die bereits vor Einführung des Nutzersystems geseedet
+    wurden (Objekte etc. schon vorhanden), sollen bei einem Neustart
+    trotzdem noch die Demo-Benutzer bekommen."""
     if session.exec(select(Objekt)).first() is not None:
-        print("Seed-Daten bereits vorhanden — überspringe.")
-        return
+        print("Stammdaten bereits vorhanden — überspringe.")
+    else:
+        _seed_stammdaten(session)
 
+    if session.exec(select(Benutzer)).first() is not None:
+        print("Benutzer bereits vorhanden — überspringe.")
+    else:
+        _seed_benutzer(session)
+
+
+def _seed_benutzer(session: Session) -> None:
+    session.add(
+        Benutzer(
+            name="Admin",
+            email="admin@example.test",
+            passwort_hash=passwort_hashen("admin123"),
+            rolle=BenutzerRolle.admin,
+        )
+    )
+    session.add(
+        Benutzer(
+            name="Sachbearbeiterin",
+            email="user@example.test",
+            passwort_hash=passwort_hashen("user1234"),
+            rolle=BenutzerRolle.user,
+        )
+    )
+    session.commit()
+    print(
+        "Demo-Benutzer angelegt — admin@example.test / admin123 (Admin), "
+        "user@example.test / user1234 (User)."
+    )
+
+
+def _seed_stammdaten(session: Session) -> None:
     objekt_musterstrasse = Objekt(
         bezeichnung="Liegenschaft Musterstraße 5",
         adresse="Musterstraße 5, 1010 Wien",
@@ -222,7 +259,7 @@ def seed(session: Session) -> None:
         session.add(dok)
 
     session.commit()
-    print("Seed-Daten erfolgreich geladen.")
+    print("Stammdaten erfolgreich geladen.")
 
 
 def main() -> None:

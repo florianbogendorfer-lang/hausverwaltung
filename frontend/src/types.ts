@@ -28,6 +28,14 @@ export type TracePhase = "wahrnehmung" | "plan" | "tool_call" | "tool_result" | 
 export type Aktionstyp = "nachricht_senden" | "dienstleister_beauftragen" | "rechnung_erfassen";
 export type FreigabeStatus = "offen" | "freigegeben" | "bearbeitet_freigegeben" | "abgelehnt";
 export type Akteur = "agent" | "operator" | "system";
+export type BenutzerRolle = "admin" | "user";
+
+export interface Benutzer {
+  id: number;
+  name: string;
+  email: string;
+  rolle: BenutzerRolle;
+}
 
 export interface Objekt {
   id: number;
@@ -78,6 +86,8 @@ export interface Fall {
   konfidenz?: number | null;
   erstellt_am: string;
   geaendert_am: string;
+  geloescht: boolean;
+  geloescht_am?: string | null;
 }
 
 export interface Nachricht {

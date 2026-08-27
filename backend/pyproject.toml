@@ -12,6 +12,7 @@ dependencies = [
     "anthropic>=0.40",
     "psycopg[binary]>=3.2",
     "chromadb>=1.0",
+    "bcrypt>=4.1",
 ]
 
 [project.optional-dependencies]

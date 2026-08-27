@@ -1,0 +1,70 @@
+"""Benutzerverwaltung — ausschließlich für Admins (Anlegen/Auflisten/
+Löschen weiterer Konten)."""
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlmodel import Session, select
+
+from app.auth import admin_erforderlich, passwort_hashen
+from app.db import get_session
+from app.models import Benutzer, BenutzerRolle, Sitzung
+
+router = APIRouter(prefix="/benutzer", tags=["benutzer"], dependencies=[Depends(admin_erforderlich)])
+
+
+class BenutzerEingabe(BaseModel):
+    name: str
+    email: str
+    passwort: str
+    rolle: BenutzerRolle = BenutzerRolle.user
+
+
+class BenutzerAusgabe(BaseModel):
+    id: int
+    name: str
+    email: str
+    rolle: BenutzerRolle
+
+
+def _ausgabe(benutzer: Benutzer) -> BenutzerAusgabe:
+    return BenutzerAusgabe(id=benutzer.id, name=benutzer.name, email=benutzer.email, rolle=benutzer.rolle)
+
+
+@router.get("", response_model=list[BenutzerAusgabe])
+def liste(session: Session = Depends(get_session)) -> list[BenutzerAusgabe]:
+    return [_ausgabe(b) for b in session.exec(select(Benutzer)).all()]
+
+
+@router.post("", response_model=BenutzerAusgabe, status_code=201)
+def anlegen(eingabe: BenutzerEingabe, session: Session = Depends(get_session)) -> BenutzerAusgabe:
+    vorhanden = session.exec(select(Benutzer).where(Benutzer.email == eingabe.email)).first()
+    if vorhanden is not None:
+        raise HTTPException(status_code=409, detail="E-Mail bereits vergeben")
+    benutzer = Benutzer(
+        name=eingabe.name,
+        email=eingabe.email,
+        passwort_hash=passwort_hashen(eingabe.passwort),
+        rolle=eingabe.rolle,
+    )
+    session.add(benutzer)
+    session.commit()
+    session.refresh(benutzer)
+    return _ausgabe(benutzer)
+
+
+@router.delete("/{benutzer_id}", status_code=204)
+def loeschen(
+    benutzer_id: int,
+    aktiver_benutzer: Benutzer = Depends(admin_erforderlich),
+    session: Session = Depends(get_session),
+) -> None:
+    benutzer = session.get(Benutzer, benutzer_id)
+    if benutzer is None:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    if benutzer.id == aktiver_benutzer.id:
+        raise HTTPException(status_code=400, detail="Das eigene Konto kann nicht gelöscht werden")
+
+    for sitzung in session.exec(select(Sitzung).where(Sitzung.benutzer_id == benutzer.id)).all():
+        session.delete(sitzung)
+    session.delete(benutzer)
+    session.commit()

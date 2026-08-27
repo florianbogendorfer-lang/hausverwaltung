@@ -10,8 +10,21 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.agent.tools import log_aktion
+from app.auth import admin_erforderlich
 from app.db import get_session
-from app.models import Aktion, Akteur, Dienstleister, Fall, FallStatus, Gewerk, Kontakt, Nachricht, Objekt, Trace
+from app.models import (
+    Aktion,
+    Akteur,
+    Benutzer,
+    Dienstleister,
+    Fall,
+    FallStatus,
+    Gewerk,
+    Kontakt,
+    Nachricht,
+    Objekt,
+    Trace,
+)
 
 router = APIRouter(prefix="/faelle", tags=["faelle"])
 
@@ -26,15 +39,35 @@ class FallManuelleZuordnung(BaseModel):
 
 @router.get("", response_model=list[Fall])
 def liste_faelle(session: Session = Depends(get_session)) -> list[Fall]:
-    return list(session.exec(select(Fall)).all())
+    return list(session.exec(select(Fall).where(Fall.geloescht.is_(False))).all())
 
 
 @router.get("/{fall_id}", response_model=Fall)
 def fall_details(fall_id: int, session: Session = Depends(get_session)) -> Fall:
     fall = session.get(Fall, fall_id)
-    if fall is None:
+    if fall is None or fall.geloescht:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
     return fall
+
+
+@router.delete("/{fall_id}", status_code=204)
+def fall_loeschen(
+    fall_id: int,
+    admin: Benutzer = Depends(admin_erforderlich),
+    session: Session = Depends(get_session),
+) -> None:
+    """Soft-Delete (FR/§0: der Audit-Trail — Aktionen/Traces — bleibt
+    append-only erhalten, nur die Sichtbarkeit in Board/Listen entfällt)."""
+    fall = session.get(Fall, fall_id)
+    if fall is None or fall.geloescht:
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
+
+    fall.geloescht = True
+    fall.geloescht_am = datetime.utcnow()
+    fall.geaendert_am = fall.geloescht_am
+    session.add(fall)
+    session.commit()
+    log_aktion(session, fall.id, Akteur.operator, "fall:geloescht", {"von": admin.email})
 
 
 @router.get("/{fall_id}/trace", response_model=list[Trace])
@@ -65,7 +98,7 @@ def fall_manuell_zuordnen(
     Bearbeiter (u. a. für eskalierte Fälle, bei denen der Agent die
     Stammdaten nicht selbst ermitteln konnte)."""
     fall = session.get(Fall, fall_id)
-    if fall is None:
+    if fall is None or fall.geloescht:
         raise HTTPException(status_code=404, detail="Fall nicht gefunden")
 
     aenderungen: dict = {}

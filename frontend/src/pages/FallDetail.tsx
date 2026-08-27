@@ -13,14 +13,16 @@ import {
   Pencil,
   PlayCircle,
   Sparkles,
+  Trash2,
   UserRound,
   Wrench,
   X,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../auth";
 import { FreigabeKarte } from "../components/FreigabeKarte";
 import { FallStatusBadge, NachrichtStatusBadge } from "../components/StatusBadge";
 import type {
@@ -51,6 +53,8 @@ type TimelineEintrag =
 
 export default function FallDetail() {
   const { fallId } = useParams();
+  const navigate = useNavigate();
+  const { benutzer } = useAuth();
   const [fall, setFall] = useState<Fall | null>(null);
   const [traces, setTraces] = useState<Trace[]>([]);
   const [aktionen, setAktionen] = useState<Aktion[]>([]);
@@ -151,7 +155,23 @@ export default function FallDetail() {
             </a>
           </p>
         </div>
-        <FallStatusBadge status={fall.status} />
+        <div className="flex items-center gap-3">
+          <FallStatusBadge status={fall.status} />
+          {benutzer?.rolle === "admin" && (
+            <button
+              onClick={async () => {
+                if (!fallId) return;
+                if (!confirm(`Fall #${fall.id} „${fall.betreff}“ wirklich löschen?`)) return;
+                await api.del(`/faelle/${fallId}`);
+                navigate("/");
+              }}
+              title="Fall löschen (nur Admin)"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       <HandlungsanweisungBanner status={fall.status} eskalationsgrund={eskalationsgrund} />

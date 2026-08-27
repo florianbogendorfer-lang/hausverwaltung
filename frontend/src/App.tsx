@@ -1,7 +1,8 @@
-import { LayoutGrid, Mail, Settings2 } from "lucide-react";
+import { LayoutGrid, LogOut, Mail, Settings2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "./api";
+import { useAuth } from "./auth";
 import type { Freigabe } from "./types";
 
 const NAV_ITEMS = [
@@ -28,14 +29,26 @@ function Logo() {
 
 export default function App() {
   const location = useLocation();
+  const { benutzer, ladend, abmelden } = useAuth();
   const [offeneFreigaben, setOffeneFreigaben] = useState(0);
 
   useEffect(() => {
+    if (!benutzer) return;
     api
       .get<Freigabe[]>("/freigaben?nur_offene=true")
       .then((liste) => setOffeneFreigaben(liste.length))
       .catch(() => undefined);
-  }, [location.pathname]);
+  }, [location.pathname, benutzer]);
+
+  if (ladend) return <p className="p-8 text-sm text-slate-400">Lädt…</p>;
+  if (!benutzer) return <Navigate to="/login" replace />;
+
+  const navItems = [
+    ...NAV_ITEMS,
+    ...(benutzer.rolle === "admin"
+      ? [{ to: "/benutzer", label: "Benutzer", ende: true, icon: Users }]
+      : []),
+  ];
 
   return (
     <div className="min-h-screen">
@@ -52,8 +65,8 @@ export default function App() {
               </p>
             </div>
           </div>
-          <nav className="flex gap-1">
-            {NAV_ITEMS.map((item) => (
+          <nav className="flex flex-1 gap-1">
+            {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -76,6 +89,19 @@ export default function App() {
               </NavLink>
             ))}
           </nav>
+          <div className="flex items-center gap-3 text-sm">
+            <div className="text-right leading-tight">
+              <p className="font-medium text-slate-700">{benutzer.name}</p>
+              <p className="text-xs text-slate-400">{benutzer.rolle === "admin" ? "Admin" : "User"}</p>
+            </div>
+            <button
+              onClick={() => abmelden()}
+              title="Abmelden"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-[1400px] px-6 py-8">

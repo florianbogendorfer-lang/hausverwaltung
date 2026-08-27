@@ -66,7 +66,7 @@ def _kundenkorrespondenz(nachrichten: list[Nachricht]) -> list[Nachricht]:
 @router.get("/{ticket_nummer}", response_model=TicketAnsicht)
 def ticket_ansehen(ticket_nummer: str, session: Session = Depends(get_session)) -> TicketAnsicht:
     fall = session.exec(select(Fall).where(Fall.ticket_nummer == ticket_nummer)).first()
-    if fall is None:
+    if fall is None or fall.geloescht:
         raise HTTPException(status_code=404, detail="Ticket nicht gefunden")
 
     nachrichten = list(
