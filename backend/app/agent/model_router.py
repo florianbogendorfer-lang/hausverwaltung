@@ -60,7 +60,12 @@ class AnthropicLLMClient:
         if self._client is None:
             import anthropic
 
-            self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            # Kurzes, explizites Timeout statt des SDK-Defaults (10 Min.):
+            # der Agent-Loop läuft synchron in der auslösenden Request —
+            # eine hängende Verbindung zur API würde sonst die ganze
+            # Request (und damit den Bearbeiter) minutenlang blockieren,
+            # statt (dank des try/except in loop.py) sichtbar zu eskalieren.
+            self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=25.0)
         return self._client
 
     def complete(
@@ -120,6 +125,9 @@ class MistralLLMClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
+            # Kurzes, explizites Timeout — siehe Begründung bei
+            # AnthropicLLMClient._get_client.
+            timeout_ms=25_000,
         )
         dauer_ms = int((time.monotonic() - start) * 1000)
         text = response.choices[0].message.content

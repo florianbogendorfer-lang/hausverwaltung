@@ -66,4 +66,5 @@ def test_mistral_client_sendet_system_und_user_nachricht():
             {"role": "system", "content": "System"},
             {"role": "user", "content": "User"},
         ],
+        timeout_ms=25_000,
     )
