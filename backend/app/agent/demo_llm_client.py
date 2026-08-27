@@ -11,6 +11,7 @@ import json
 import re
 import time
 
+from app.config import settings
 from app.agent.model_router import LLMAntwort
 
 _GEWERK_STICHWORTE: dict[str, list[str]] = {
@@ -22,6 +23,10 @@ _GEWERK_STICHWORTE: dict[str, list[str]] = {
 
 
 class DemoLLMClient:
+    def __init__(self) -> None:
+        self.modell_guenstig = settings.modell_guenstig
+        self.modell_stark = settings.modell_stark
+
     def complete(self, modell: str, system: str, prompt: str, temperature: float) -> LLMAntwort:
         start = time.monotonic()
         if "JSON-Objekt" in system:

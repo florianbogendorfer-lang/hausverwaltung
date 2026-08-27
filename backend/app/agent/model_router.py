@@ -35,6 +35,12 @@ class LLMAntwort(BaseModel):
 
 
 class LLMClient(Protocol):
+    # Trägt die Modell-IDs, die `ModelRouter.modell_fuer` je Anbieter
+    # abfragt (statt provider-spezifisch in Settings zu verzweigen) —
+    # jeder Client kennt nur seine eigenen, passenden Modell-IDs.
+    modell_guenstig: str
+    modell_stark: str
+
     def complete(
         self, modell: str, system: str, prompt: str, temperature: float
     ) -> LLMAntwort: ...
@@ -46,6 +52,8 @@ class AnthropicLLMClient:
     laut §12/§13 auf AWS Bedrock eu-central-1 umzustellen)."""
 
     def __init__(self) -> None:
+        self.modell_guenstig = settings.modell_guenstig
+        self.modell_stark = settings.modell_stark
         self._client = None
 
     def _get_client(self):
@@ -81,6 +89,43 @@ class AnthropicLLMClient:
         return LLMAntwort(text=text, modell=modell, dauer_ms=dauer_ms)
 
 
+class MistralLLMClient:
+    """Ruft die Mistral-Chat-Completions-API auf — günstiger und EU-
+    gehostet (Mistral AI, Frankreich), alternativ zu Anthropic. Austausch
+    ist reine Konfiguration (`HV_LLM_PROVIDER=mistral`, NFR-5), keine
+    Änderung am Agent-Kern nötig, da beide hinter demselben `LLMClient`-
+    Protokoll laufen."""
+
+    def __init__(self) -> None:
+        self.modell_guenstig = settings.mistral_modell_guenstig
+        self.modell_stark = settings.mistral_modell_stark
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from mistralai.client import Mistral
+
+            self._client = Mistral(api_key=settings.mistral_api_key)
+        return self._client
+
+    def complete(
+        self, modell: str, system: str, prompt: str, temperature: float = 0.0
+    ) -> LLMAntwort:
+        client = self._get_client()
+        start = time.monotonic()
+        response = client.chat.complete(
+            model=modell,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        dauer_ms = int((time.monotonic() - start) * 1000)
+        text = response.choices[0].message.content
+        return LLMAntwort(text=text, modell=modell, dauer_ms=dauer_ms)
+
+
 class SchemaValidierungFehlgeschlagen(Exception):
     """Strukturierte Ausgabe hat auch nach erneutem Versuch das Schema
     verletzt (FR-AGENT-3) — der Aufrufer soll daraufhin eskalieren."""
@@ -100,10 +145,22 @@ def _extrahiere_json(text: str) -> str:
 
 
 def _default_client() -> LLMClient:
+    provider = (settings.llm_provider or "").strip().lower()
+    if provider == "mistral":
+        return MistralLLMClient()
+    if provider == "anthropic":
+        return AnthropicLLMClient()
+    if provider == "demo":
+        from app.agent.demo_llm_client import DemoLLMClient
+
+        return DemoLLMClient()
+
+    # Keine explizite Wahl per HV_LLM_PROVIDER getroffen — Altverhalten
+    # beibehalten (Anthropic-Key gesetzt -> Anthropic, sonst Demo statt
+    # Absturz, damit der Prototyp auch ohne Zugangsdaten vorführbar ist,
+    # §0).
     if settings.anthropic_api_key:
         return AnthropicLLMClient()
-    # Kein API-Key konfiguriert: Demo-Client statt Absturz, damit der
-    # Prototyp auch ohne Zugangsdaten vorführbar ist (§0).
     from app.agent.demo_llm_client import DemoLLMClient
 
     return DemoLLMClient()
@@ -115,8 +172,8 @@ class ModelRouter:
 
     def modell_fuer(self, stufe: ModellStufe) -> str:
         if stufe == ModellStufe.guenstig:
-            return settings.modell_guenstig
-        return settings.modell_stark
+            return self._client.modell_guenstig
+        return self._client.modell_stark
 
     def complete_text(
         self, stufe: ModellStufe, system: str, prompt: str, temperature: float = 0.3

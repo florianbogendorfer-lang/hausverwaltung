@@ -18,6 +18,8 @@ class FakeLLMClient:
 
     def __init__(self) -> None:
         self.aufrufe: list[dict] = []
+        self.modell_guenstig = "fake-guenstig"
+        self.modell_stark = "fake-stark"
 
     def complete(self, modell: str, system: str, prompt: str, temperature: float) -> LLMAntwort:
         self.aufrufe.append(

@@ -14,11 +14,21 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./hausverwaltung.db"
 
     anthropic_api_key: str | None = None
+    mistral_api_key: str | None = None
+
+    # Explizite Provider-Wahl: "anthropic" | "mistral" | "demo". Ohne
+    # Angabe gilt das bisherige Verhalten (Altkompatibilität): Anthropic-
+    # Key gesetzt -> Anthropic, sonst Demo. Damit lassen sich beide echten
+    # Provider parallel konfiguriert lassen und trotzdem gezielt zwischen
+    # ihnen wechseln, ohne einen Key entfernen zu müssen.
+    llm_provider: str | None = None
 
     # FR-AGENT-2 — Modell-Routing: günstig für Klassifikation/Extraktion,
     # stark für Kundentexte/Planung. Austauschbar, siehe §12.
     modell_guenstig: str = "claude-haiku-4-5"
     modell_stark: str = "claude-sonnet-5"
+    mistral_modell_guenstig: str = "mistral-small-latest"
+    mistral_modell_stark: str = "mistral-large-latest"
 
     # FR-HITL-6 / FR-AGENT-4 — unterhalb dieser Konfidenz wird eskaliert
     # statt geraten.

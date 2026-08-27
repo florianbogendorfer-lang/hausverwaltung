@@ -41,12 +41,17 @@ freigabepflichtig sind, steht zentral in `app/agent/policy.py` (FR-HITL-2)
 ist das UI seit einem UX-Überarbeitungsdurchgang um den tatsächlichen
 Verarbeitungsfluss (§4.1) herum aufgebaut — siehe
 [„Web-GUI"](#web-gui-kanban-board-statt-getrennter-listen) unten für den
-Aufbau. Läuft **ohne** konfigurierten `HV_ANTHROPIC_API_KEY` bereits
-vollständig vorführbar: ein regelbasierter `DemoLLMClient`
+Aufbau. Läuft **ohne** konfigurierten API-Key bereits vollständig
+vorführbar: ein regelbasierter `DemoLLMClient`
 (`backend/app/agent/demo_llm_client.py`) übernimmt dann Einordnung und
 Mailentwurf, damit der komplette Referenzfall auch ohne Zugangsdaten
-durchspielbar ist — mit echtem Key wird automatisch die Anthropic-API
-verwendet (reiner Konfigurationswechsel, NFR-5).
+durchspielbar ist. Der LLM-Anbieter ist austauschbar (`LLMClient`-
+Protokoll, `backend/app/agent/model_router.py`) — Anthropic und Mistral
+AI (günstiger, EU-gehostet) stehen beide bereit, gewählt wird rein per
+Konfiguration (NFR-5) über `HV_LLM_PROVIDER=anthropic|mistral|demo` plus
+dem passenden `HV_ANTHROPIC_API_KEY`/`HV_MISTRAL_API_KEY`. Ohne
+`HV_LLM_PROVIDER` gilt zur Abwärtskompatibilität: Anthropic-Key gesetzt
+→ Anthropic, sonst Demo.
 
 **Phase 5 — RAG-Vektorsuche:** `dokumente_durchsuchen` nutzt jetzt einen
 echten, von der DB getrennten Vektorspeicher (§6/§12) statt der früheren
@@ -94,9 +99,11 @@ alembic upgrade head
 # Seed-Daten laden (idempotent)
 python -m app.seed
 
-# Optional: Anthropic-API-Key setzen (§12) — ohne Key läuft automatisch
-# der regelbasierte Demo-Client (siehe oben)
+# Optional: LLM-Anbieter wählen (§12) — ohne Konfiguration läuft
+# automatisch der regelbasierte Demo-Client (siehe oben)
+export HV_LLM_PROVIDER=anthropic   # oder: mistral
 export HV_ANTHROPIC_API_KEY=sk-...
+# export HV_MISTRAL_API_KEY=...    # falls HV_LLM_PROVIDER=mistral
 
 # Server starten
 uvicorn app.main:app --reload
@@ -231,9 +238,10 @@ kollidieren, wenn beides aus demselben Origin kommt.
    `docker-entrypoint.sh` beim Start in `HV_DATABASE_URL`
    (Schema `postgresql+psycopg://`) übersetzt. Kein manuelles Kopieren
    nötig.
-3. Optional als Umgebungsvariable setzen: `HV_ANTHROPIC_API_KEY` (ohne
-   Key läuft automatisch der regelbasierte `DemoLLMClient`, siehe oben).
-   Ebenfalls optional: `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/
+3. Optional als Umgebungsvariablen setzen: `HV_LLM_PROVIDER` (`anthropic`
+   oder `mistral`) plus `HV_ANTHROPIC_API_KEY`/`HV_MISTRAL_API_KEY` (ohne
+   Konfiguration läuft automatisch der regelbasierte `DemoLLMClient`,
+   siehe oben). Ebenfalls optional: `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/
    `HV_SMTP_PASSWORT`/`HV_SMTP_ABSENDER` für echten Mailversand (§16
    Phase 6) — ohne diese Variablen bleibt der Versand vollständig
    simuliert.
