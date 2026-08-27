@@ -37,8 +37,11 @@ async function anfrage<T>(pfad: string, optionen?: RequestInit): Promise<T> {
 
 export const api = {
   get: <T>(pfad: string) => anfrage<T>(pfad),
-  post: <T>(pfad: string, body?: unknown) =>
-    anfrage<T>(pfad, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  // `optionen` erlaubt u. a. { signal } — für Anfragen, die lange laufen
+  // können (z. B. der Agent-Loop beim Mail-Einspielen) und daher manuell
+  // abbrechbar/mit eigenem Timeout ausgestattet werden sollen.
+  post: <T>(pfad: string, body?: unknown, optionen?: RequestInit) =>
+    anfrage<T>(pfad, { method: "POST", body: body ? JSON.stringify(body) : undefined, ...optionen }),
   put: <T>(pfad: string, body: unknown) =>
     anfrage<T>(pfad, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(pfad: string, body: unknown) =>

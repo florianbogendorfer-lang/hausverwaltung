@@ -1,9 +1,17 @@
-import { AlertCircle, KeyRound, Send, Wrench } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertCircle, KeyRound, Send, Wrench, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiFehler } from "../api";
 import { NachrichtStatusBadge } from "../components/StatusBadge";
 import type { Fall, Nachricht } from "../types";
+
+// Sicherheitsnetz für den Agent-Loop (läuft synchron in dieser Request):
+// das Backend hat inzwischen ein eigenes, kürzeres Timeout für den
+// LLM-Aufruf, aber falls die Anfrage aus anderem Grund hängt (Netzwerk,
+// überlasteter Container, DB), soll der Bearbeiter nicht endlos vor einem
+// drehenden Button sitzen — automatischer Abbruch nach 40s, plus ein
+// Button, um jederzeit selbst abzubrechen.
+const EINSPIELEN_TIMEOUT_MS = 40_000;
 
 // UI-5 — Simuliertes Postfach + Outbox (§10): vorformulierte Test-Mails
 // einspielen oder eigene tippen (löst die Fallbearbeitung aus), sowie die
@@ -54,6 +62,7 @@ export default function Postfach() {
   const [ausgewaehlt, setAusgewaehlt] = useState(TEST_MAILS[0].label);
   const [sendetGerade, setSendetGerade] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  const abbruchRef = useRef<AbortController | null>(null);
 
   const [outbox, setOutbox] = useState<Nachricht[]>([]);
   const [faelle, setFaelle] = useState<Map<number, Fall>>(new Map());
@@ -78,14 +87,34 @@ export default function Postfach() {
   async function einspielen() {
     setSendetGerade(true);
     setFehler(null);
+    const controller = new AbortController();
+    abbruchRef.current = controller;
+    const zeitlimit = setTimeout(() => controller.abort(), EINSPIELEN_TIMEOUT_MS);
     try {
-      const fall = await api.post<Fall>("/postfach/eingang", { von, betreff, inhalt });
+      const fall = await api.post<Fall>(
+        "/postfach/eingang",
+        { von, betreff, inhalt },
+        { signal: controller.signal },
+      );
       navigate(`/faelle/${fall.id}`);
     } catch (e) {
-      setFehler(e instanceof ApiFehler ? e.message : "Mail konnte nicht eingespielt werden.");
+      if (controller.signal.aborted) {
+        setFehler(
+          "Abgebrochen. Die Bearbeitung läuft im Hintergrund evtl. trotzdem weiter — bitte in " +
+            "ein paar Sekunden im Board nachsehen, ob der Fall doch erschienen ist.",
+        );
+      } else {
+        setFehler(e instanceof ApiFehler ? e.message : "Mail konnte nicht eingespielt werden.");
+      }
     } finally {
+      clearTimeout(zeitlimit);
+      abbruchRef.current = null;
       setSendetGerade(false);
     }
+  }
+
+  function abbrechen() {
+    abbruchRef.current?.abort();
   }
 
   return (
@@ -149,13 +178,23 @@ export default function Postfach() {
               />
             </label>
             {fehler && <p className="text-sm text-rose-600">{fehler}</p>}
-            <button
-              onClick={einspielen}
-              disabled={sendetGerade || !von || !betreff || !inhalt}
-              className="inline-flex items-center gap-1.5 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
-            >
-              <Send size={15} /> {sendetGerade ? "Wird verarbeitet…" : "Mail einspielen"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={einspielen}
+                disabled={sendetGerade || !von || !betreff || !inhalt}
+                className="inline-flex items-center gap-1.5 self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <Send size={15} /> {sendetGerade ? "Wird verarbeitet…" : "Mail einspielen"}
+              </button>
+              {sendetGerade && (
+                <button
+                  onClick={abbrechen}
+                  className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  <X size={15} /> Abbrechen
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
