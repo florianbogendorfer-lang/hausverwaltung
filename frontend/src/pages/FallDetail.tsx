@@ -25,6 +25,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { FreigabeKarte } from "../components/FreigabeKarte";
 import { FallStatusBadge, NachrichtStatusBadge } from "../components/StatusBadge";
+import { alsUtcDatum } from "../zeit";
 import type {
   Aktion,
   Dienstleister,
@@ -113,7 +114,9 @@ export default function FallDetail() {
       ...traces.map((t): TimelineEintrag => ({ art: "trace", zeitstempel: t.zeitstempel, daten: t })),
       ...aktionen.map((a): TimelineEintrag => ({ art: "aktion", zeitstempel: a.zeitstempel, daten: a })),
     ];
-    return eintraege.sort((x, y) => new Date(x.zeitstempel).getTime() - new Date(y.zeitstempel).getTime());
+    return eintraege.sort(
+      (x, y) => alsUtcDatum(x.zeitstempel).getTime() - alsUtcDatum(y.zeitstempel).getTime(),
+    );
   }, [traces, aktionen]);
 
   const eskalationsgrund = useMemo(() => {
@@ -638,7 +641,7 @@ const PHASE_STYLE: Record<Trace["phase"], string> = {
 };
 
 function TimelineZeile({ eintrag }: { eintrag: TimelineEintrag }) {
-  const zeit = new Date(eintrag.zeitstempel).toLocaleTimeString("de-AT");
+  const zeit = alsUtcDatum(eintrag.zeitstempel).toLocaleTimeString("de-AT");
 
   if (eintrag.art === "trace") {
     const t = eintrag.daten;

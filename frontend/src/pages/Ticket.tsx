@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import type { TicketAnsicht } from "../types";
+import { alsUtcDatum } from "../zeit";
 
 // Öffentliche Kundenansicht — bewusst ohne die interne Navigation
 // (Board/Postfach/Stammdaten): Kunden erreichen diese Seite über den Link
@@ -57,8 +58,8 @@ export default function Ticket() {
             </div>
 
             <p className="mt-4 text-xs text-slate-400">
-              Eingegangen am {new Date(ticket.erstellt_am).toLocaleString("de-AT")} · zuletzt
-              aktualisiert am {new Date(ticket.geaendert_am).toLocaleString("de-AT")}
+              Eingegangen am {alsUtcDatum(ticket.erstellt_am).toLocaleString("de-AT")} · zuletzt
+              aktualisiert am {alsUtcDatum(ticket.geaendert_am).toLocaleString("de-AT")}
             </p>
 
             <h2 className="mt-8 mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-400">
@@ -74,7 +75,7 @@ export default function Ticket() {
                     <span className="font-medium text-slate-500">
                       {n.richtung === "eingehend" ? "Von Ihnen" : "Von der Hausverwaltung"}
                     </span>
-                    <span>{new Date(n.erstellt_am).toLocaleString("de-AT")}</span>
+                    <span>{alsUtcDatum(n.erstellt_am).toLocaleString("de-AT")}</span>
                   </div>
                   <p className="mt-1 font-medium text-slate-800">{n.betreff}</p>
                   <p className="mt-1 whitespace-pre-wrap text-slate-600">{n.inhalt}</p>

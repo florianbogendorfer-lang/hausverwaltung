@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, ApiFehler } from "../api";
 import { FreigabeStatusBadge } from "./StatusBadge";
 import type { Dienstleister, Fall, Freigabe, Nachricht, Objekt } from "../types";
+import { alsUtcDatum } from "../zeit";
 
 // HITL-Kernstück (§5): zeigt Auslöser, Entwurf/Payload, Begründung und
 // herangezogene Fakten (FR-HITL-4) und bietet die drei Entscheidungen aus
@@ -136,7 +137,7 @@ export function FreigabeKarte({
             </div>
             <p className="mt-0.5 text-sm text-slate-500">
               {fall ? `Fall: ${fall.betreff} · ` : ""}angelegt{" "}
-              {new Date(freigabe.erstellt_am).toLocaleString("de-AT")}
+              {alsUtcDatum(freigabe.erstellt_am).toLocaleString("de-AT")}
             </p>
           </div>
         </div>
@@ -215,7 +216,7 @@ export function FreigabeKarte({
           {freigabe.status !== "offen" && (
             <p className="mb-3 text-sm text-slate-500">
               Entschieden von <strong>{freigabe.entscheider}</strong> am{" "}
-              {freigabe.entscheidung_am && new Date(freigabe.entscheidung_am).toLocaleString("de-AT")}
+              {freigabe.entscheidung_am && alsUtcDatum(freigabe.entscheidung_am).toLocaleString("de-AT")}
               {freigabe.ablehnungsgrund && <> — Grund: {freigabe.ablehnungsgrund}</>}
             </p>
           )}

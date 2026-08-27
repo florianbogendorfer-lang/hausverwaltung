@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { Fall, FallStatus, Freigabe, Objekt } from "../types";
+import { alsUtcDatum } from "../zeit";
 
 // Fall-Board (UI-1, überarbeitet): bildet den Verarbeitungsfluss (§4.1) als
 // Kanban-Board ab — Spalten = grobe Pipeline-Phasen, Karten = Fälle. Kein
@@ -116,7 +117,7 @@ const STATUS_LABEL: Record<FallStatus, string> = {
 };
 
 function zeitVor(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMs = Date.now() - alsUtcDatum(iso).getTime();
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "gerade eben";
   if (min < 60) return `vor ${min} Min.`;
