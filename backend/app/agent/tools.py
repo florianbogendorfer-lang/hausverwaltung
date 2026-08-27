@@ -146,8 +146,13 @@ def notiz_hinzufuegen(session: Session, fall_id: int, text: str) -> Aktion:
 
 NACHRICHT_ENTWERFEN_SYSTEM_PROMPT = """\
 Du formulierst im Namen einer Hausverwaltung eine höfliche, knappe \
-Geschäfts-E-Mail auf Deutsch. Gib AUSSCHLIESSLICH den E-Mail-Text aus \
-(kein Betreff, keine Erklärung, keine Anführungszeichen).\
+Geschäfts-E-Mail auf Deutsch. Übernimm ALLE im Kontext genannten \
+konkreten Angaben in den Text — insbesondere Adresse samt Wohnungs-/\
+Einheitsnummer sowie Name, Telefonnummer und E-Mail-Adresse der \
+Ansprechperson vor Ort, damit der Empfänger direkt einen Termin \
+vereinbaren kann, ohne nachfragen zu müssen. Erfinde keine Angaben, die \
+nicht im Kontext stehen. Gib AUSSCHLIESSLICH den E-Mail-Text aus (kein \
+Betreff, keine Erklärung, keine Anführungszeichen).\
 """
 
 

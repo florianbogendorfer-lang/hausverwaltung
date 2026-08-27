@@ -11,8 +11,8 @@ Loops in `app.agent.freigabe_service`, ausgelöst durch den Operator.
 """
 
 from app.agent import tools
-from app.agent.model_router import ModelRouter, SchemaValidierungFehlgeschlagen
-from app.agent.schemas import EingehendeMail
+from app.agent.model_router import ModellStufe, ModelRouter, SchemaValidierungFehlgeschlagen
+from app.agent.schemas import EingehendeMail, Einordnung
 from app.agent.trace_logger import TraceLogger
 from app.agent.vector_store import DokumentenIndex
 from app.config import settings
@@ -85,6 +85,35 @@ def bearbeite_eingehende_mail(
     )
     trace.log(TracePhase.entscheidung, f"Status → {FallStatus.eingeordnet.value}")
 
+    # Ab hier läuft der restliche Loop (Anreicherung + Mailentwurf) in
+    # einem gemeinsamen try/except: die Schritte ab hier können nicht nur
+    # an fachlicher Unsicherheit scheitern (dafür gibt es die gezielten
+    # Eskalationen unten), sondern auch an unerwarteten Fehlern — allen
+    # voran ein echter LLM-API-Aufruf in `nachricht_entwerfen`, der
+    # netzwerk-/anbieterseitig fehlschlagen kann. Ohne dieses Netz bliebe
+    # der Fall für immer auf EINGEORDNET stehen (Status ist zu diesem
+    # Zeitpunkt schon committet), ohne dass ein Bearbeiter das je zu
+    # sehen bekäme — der Loop läuft synchron in der HTTP-Request und wird
+    # nicht automatisch erneut angestoßen (FR-HITL-6: im Zweifel
+    # eskalieren statt stillschweigend hängen bleiben).
+    try:
+        return _anreichern_und_entwerfen(session, router, index, trace, fall, mail, einordnung)
+    except Exception as exc:  # noqa: BLE001 — bewusst breit, siehe Kommentar oben
+        trace.log(TracePhase.tool_result, f"Unerwarteter Fehler bei der Bearbeitung: {exc}")
+        return tools.fall_eskalieren(
+            session, fall, f"Unerwarteter Fehler bei der Bearbeitung: {exc}"
+        )
+
+
+def _anreichern_und_entwerfen(
+    session: Session,
+    router: ModelRouter,
+    index: DokumentenIndex,
+    trace: TraceLogger,
+    fall: Fall,
+    mail: EingehendeMail,
+    einordnung: Einordnung,
+) -> Fall:
     if einordnung.konfidenz < settings.konfidenz_schwelle:
         trace.log(
             TracePhase.reasoning,
@@ -160,8 +189,20 @@ def bearbeite_eingehende_mail(
         "Nächster Schritt: Beauftragungsmail entwerfen (Tool nachricht_entwerfen). "
         "Versand ist freigabepflichtig und erfordert danach eine Freigabe (§5).",
     )
+    objekt_zeile = f"Objekt: {objekt.bezeichnung}, {objekt.adresse}"
+    if objekt.einheit:
+        objekt_zeile += f", {objekt.einheit}"
+    melder_zeile = (
+        f"Melder/Ansprechperson vor Ort: {kontakt.name}"
+        + (f", Tel. {kontakt.telefon}" if kontakt.telefon else "")
+        + f", {kontakt.email}"
+        if kontakt is not None
+        else "Melder/Ansprechperson vor Ort: konnte nicht eindeutig identifiziert werden "
+        f"(ursprüngliche Absenderadresse: {mail.von})"
+    )
     kontext = (
-        f"Objekt: {objekt.bezeichnung}, {objekt.adresse}\n"
+        f"{objekt_zeile}\n"
+        f"{melder_zeile}\n"
         f"Anliegen: {einordnung.begruendung}\n"
         f"Auszug aus Originalmail: {mail.inhalt}\n"
         f"Herangezogene Dokumente: {quellen}"
@@ -180,7 +221,7 @@ def bearbeite_eingehende_mail(
     trace.log(
         TracePhase.tool_result,
         f"Entwurf erstellt (Nachricht #{entwurf.id}, Status={entwurf.status.value}).",
-        modell=settings.modell_stark,
+        modell=router.modell_fuer(ModellStufe.stark),
     )
 
     # --- Schritt: Freigabe anfordern (FR-HITL-1, FR-HITL-2) ---

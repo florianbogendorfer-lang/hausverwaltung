@@ -56,6 +56,16 @@ def test_status_uebergang_ausserhalb_eskaliert_wird_abgelehnt():
     assert response.status_code == 400
 
 
+def test_manuelle_eskalation_aus_jedem_status_erlaubt():
+    """Notausstieg: ein Fall, der z. B. wegen eines API-Fehlers mitten im
+    (synchronen) Agent-Loop hängen geblieben ist, muss sich manuell
+    eskalieren lassen — unabhängig vom aktuellen Status."""
+    fall_id = _erzeuge_fall(status=FallStatus.eingeordnet)
+    response = client.patch(f"/api/faelle/{fall_id}", json={"status": "ESKALIERT"})
+    assert response.status_code == 200
+    assert response.json()["status"] == FallStatus.eskaliert.value
+
+
 def test_manuelle_zuordnung_unbekannter_fall_gibt_404():
     response = client.patch("/api/faelle/99999", json={"objekt_id": 1})
     assert response.status_code == 404

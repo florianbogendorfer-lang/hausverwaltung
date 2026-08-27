@@ -133,13 +133,26 @@ def fall_manuell_zuordnen(
         aenderungen["gewerk"] = daten["gewerk"]
 
     if "status" in daten and daten["status"] is not None:
-        if not (fall.status == FallStatus.eskaliert and daten["status"] == FallStatus.eingeordnet):
+        ziel = daten["status"]
+        # Zwei manuell erlaubte Übergänge: (a) der bestehende Resume-Weg
+        # ESKALIERT -> EINGEORDNET, und (b) eine manuelle Eskalation aus
+        # JEDEM Status — als Notausstieg, falls ein Fall z. B. durch einen
+        # unerwarteten Fehler mitten im (synchronen, nicht automatisch
+        # wiederholten) Agent-Loop hängen bleibt und kein automatischer
+        # Trigger mehr greift.
+        erlaubt = (fall.status == FallStatus.eskaliert and ziel == FallStatus.eingeordnet) or (
+            ziel == FallStatus.eskaliert
+        )
+        if not erlaubt:
             raise HTTPException(
                 status_code=400,
-                detail="Nur der Übergang von ESKALIERT zu EINGEORDNET ist manuell erlaubt",
+                detail=(
+                    "Nur der Übergang von ESKALIERT zu EINGEORDNET oder eine manuelle "
+                    "Eskalation sind erlaubt"
+                ),
             )
-        fall.status = daten["status"]
-        aenderungen["status"] = daten["status"].value
+        fall.status = ziel
+        aenderungen["status"] = ziel.value
 
     if not aenderungen:
         return fall

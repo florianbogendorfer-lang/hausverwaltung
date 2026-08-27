@@ -19,33 +19,88 @@ import type { Fall, FallStatus, Freigabe, Objekt } from "../types";
 // eigene Zeile oben, weil Eskalation „jederzeit" auftreten kann (§4.1) und
 // kein regulärer Pipeline-Schritt ist.
 
+type Spaltenfarbe = "slate" | "sky" | "amber" | "violet" | "emerald";
+
 interface Spalte {
   titel: string;
   beschreibung: string;
   status: FallStatus[];
+  farbe: Spaltenfarbe;
   aktion?: boolean;
 }
 
+// Jede Spalte bekommt eine eigene Farbe statt nur "Aktion nötig" (Amber)
+// vs. neutral (Weiß) — macht die fünf Pipeline-Phasen auf einen Blick
+// unterscheidbar, nicht erst über den Spaltentitel.
 const SPALTEN: Spalte[] = [
-  { titel: "Neu", beschreibung: "Mail eingegangen", status: ["NEU"] },
-  { titel: "Eingeordnet", beschreibung: "Agent reichert an", status: ["EINGEORDNET"] },
+  { titel: "Neu", beschreibung: "Mail eingegangen", status: ["NEU"], farbe: "slate" },
+  {
+    titel: "Eingeordnet",
+    beschreibung: "Agent reichert an",
+    status: ["EINGEORDNET"],
+    farbe: "sky",
+  },
   {
     titel: "Wartet auf Freigabe",
     beschreibung: "Deine Entscheidung nötig",
     status: ["WARTET_AUF_FREIGABE"],
+    farbe: "amber",
     aktion: true,
   },
   {
     titel: "In Bearbeitung",
     beschreibung: "Dienstleister/Termin/Rechnung",
     status: ["DIENSTLEISTER_BEAUFTRAGT", "TERMIN_BESTAETIGT", "ARBEIT_ERLEDIGT", "RECHNUNG_ERFASST"],
+    farbe: "violet",
   },
   {
     titel: "Abgeschlossen",
     beschreibung: "Erledigt oder abgebrochen",
     status: ["ABGESCHLOSSEN", "ABGEBROCHEN"],
+    farbe: "emerald",
   },
 ];
+
+const SPALTEN_STYLE: Record<
+  Spaltenfarbe,
+  { rahmen: string; hintergrund: string; titel: string; badge: string; beschreibung: string }
+> = {
+  slate: {
+    rahmen: "border-slate-200",
+    hintergrund: "bg-white",
+    titel: "text-slate-700",
+    badge: "bg-slate-200 text-slate-600",
+    beschreibung: "text-slate-400",
+  },
+  sky: {
+    rahmen: "border-sky-200",
+    hintergrund: "bg-sky-50",
+    titel: "text-sky-800",
+    badge: "bg-sky-500 text-white",
+    beschreibung: "text-sky-600",
+  },
+  amber: {
+    rahmen: "border-amber-300",
+    hintergrund: "bg-amber-50",
+    titel: "text-amber-800",
+    badge: "bg-amber-500 text-white",
+    beschreibung: "text-amber-700",
+  },
+  violet: {
+    rahmen: "border-violet-200",
+    hintergrund: "bg-violet-50",
+    titel: "text-violet-800",
+    badge: "bg-violet-500 text-white",
+    beschreibung: "text-violet-600",
+  },
+  emerald: {
+    rahmen: "border-emerald-200",
+    hintergrund: "bg-emerald-50",
+    titel: "text-emerald-800",
+    badge: "bg-emerald-500 text-white",
+    beschreibung: "text-emerald-600",
+  },
+};
 
 const STATUS_LABEL: Record<FallStatus, string> = {
   NEU: "Neu",
@@ -175,32 +230,19 @@ export default function Board() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {SPALTEN.map((spalte) => {
           const karten = gefiltert.filter((f) => spalte.status.includes(f.status));
+          const stil = SPALTEN_STYLE[spalte.farbe];
           return (
             <div key={spalte.titel} className="flex min-w-0 flex-col">
-              <div
-                className={`mb-3 rounded-lg border px-3 py-2.5 ${
-                  spalte.aktion
-                    ? "border-amber-300 bg-amber-50"
-                    : "border-slate-200 bg-white"
-                }`}
-              >
+              <div className={`mb-3 rounded-lg border px-3 py-2.5 ${stil.rahmen} ${stil.hintergrund}`}>
                 <div className="flex items-center justify-between">
+                  <span className={`text-sm font-semibold ${stil.titel}`}>{spalte.titel}</span>
                   <span
-                    className={`text-sm font-semibold ${spalte.aktion ? "text-amber-800" : "text-slate-700"}`}
-                  >
-                    {spalte.titel}
-                  </span>
-                  <span
-                    className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${
-                      spalte.aktion ? "bg-amber-500 text-white" : "bg-slate-200 text-slate-600"
-                    }`}
+                    className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${stil.badge}`}
                   >
                     {karten.length}
                   </span>
                 </div>
-                <p className={`mt-0.5 text-xs ${spalte.aktion ? "text-amber-700" : "text-slate-400"}`}>
-                  {spalte.beschreibung}
-                </p>
+                <p className={`mt-0.5 text-xs ${stil.beschreibung}`}>{spalte.beschreibung}</p>
               </div>
 
               <div className="flex flex-col gap-3">

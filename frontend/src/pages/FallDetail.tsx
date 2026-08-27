@@ -174,7 +174,12 @@ export default function FallDetail() {
         </div>
       </div>
 
-      <HandlungsanweisungBanner status={fall.status} eskalationsgrund={eskalationsgrund} />
+      <HandlungsanweisungBanner
+        status={fall.status}
+        eskalationsgrund={eskalationsgrund}
+        fallId={fall.id}
+        onEskaliert={laden}
+      />
 
       {offeneFreigabe && (
         <div className="mb-6">
@@ -294,10 +299,15 @@ const BANNER_STYLE: Record<string, string> = {
 function HandlungsanweisungBanner({
   status,
   eskalationsgrund,
+  fallId,
+  onEskaliert,
 }: {
   status: FallStatus;
   eskalationsgrund: string | null;
+  fallId: number;
+  onEskaliert: () => void | Promise<void>;
 }) {
+  const [wirdEskaliert, setWirdEskaliert] = useState(false);
   const { text, ton, icon: Icon } = HANDLUNGSANWEISUNG[status];
   const grundOhneEndpunkt = eskalationsgrund?.replace(/\.+$/, "");
   const anzeigeText =
@@ -305,10 +315,41 @@ function HandlungsanweisungBanner({
       ? `Eskaliert — ${grundOhneEndpunkt}. Bitte manuell übernehmen.`
       : text;
 
+  // Notausstieg für Fälle, die scheinbar "hängen" — der Agent-Loop läuft
+  // synchron in der Request, die den Fall angelegt hat, und wird bei
+  // einem Fehler nicht automatisch erneut angestoßen. Sichtbar für alle
+  // Nicht-Endzustände, damit ein Bearbeiter einen verdächtig lange
+  // stillstehenden Fall jederzeit selbst zur manuellen Bearbeitung holen
+  // kann, statt auf ein automatisches Weiterlaufen zu warten, das nicht
+  // kommt.
+  const kannManuellEskalierenLassen = !["ESKALIERT", "ABGESCHLOSSEN", "ABGEBROCHEN"].includes(
+    status,
+  );
+
+  async function eskalieren() {
+    setWirdEskaliert(true);
+    try {
+      await api.patch(`/faelle/${fallId}`, { status: "ESKALIERT" });
+      await onEskaliert();
+    } finally {
+      setWirdEskaliert(false);
+    }
+  }
+
   return (
     <div className={`mb-6 flex items-start gap-3 rounded-xl border p-4 ${BANNER_STYLE[ton]}`}>
       <Icon size={18} className="mt-0.5 shrink-0" />
-      <p className="text-sm font-medium">{anzeigeText}</p>
+      <p className="flex-1 text-sm font-medium">{anzeigeText}</p>
+      {kannManuellEskalierenLassen && (
+        <button
+          onClick={eskalieren}
+          disabled={wirdEskaliert}
+          className="shrink-0 rounded-lg border border-current/20 px-2.5 py-1 text-xs font-medium underline decoration-dotted underline-offset-2 hover:bg-black/5 disabled:opacity-50"
+          title="Falls dieser Fall verdächtig lange in diesem Status steht: manuell zur Bearbeitung eskalieren"
+        >
+          Wirkt hängengeblieben? Manuell eskalieren
+        </button>
+      )}
     </div>
   );
 }
