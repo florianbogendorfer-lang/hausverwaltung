@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Ergänzt die Versions-Obergrenzen in backend/pyproject.toml (diese
+  # Session): Dependabot öffnet PRs für Updates innerhalb dieser Grenzen
+  # automatisch, die neue CI-Pipeline (.github/workflows/ci.yml) prüft
+  # jeden dieser PRs direkt gegen die Testsuite/Linter.
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
