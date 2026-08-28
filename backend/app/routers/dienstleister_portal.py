@@ -25,10 +25,25 @@ dienstleister_portal_rate_limiter = ip_rate_limit(max_versuche=60, fenster_sekun
 
 router = APIRouter(prefix="/dienstleister-portal", tags=["dienstleister-portal"])
 
+# Vollständig für alle FallStatus-Werte statt nur der drei vom Portal
+# unterstützten (dienstleister_beauftragt/termin_bestaetigt/arbeit_erledigt)
+# + einem einzigen generischen Rest-Text — ein Dienstleister, der den
+# Link zu früh (Mail noch nicht freigegeben) oder zu spät (Fall längst
+# abgeschlossen/eskaliert) öffnet, bekam sonst für ALLE diese sehr
+# unterschiedlichen Fälle dieselbe unspezifische Meldung "wird bereits
+# anderweitig bearbeitet" — nicht erkennbar, ob er zu früh dran ist,
+# etwas verpasst hat, oder der Auftrag einfach schon fertig ist.
 _STATUS_TEXT: dict[FallStatus, str] = {
+    FallStatus.neu: "Dieser Auftrag ist noch nicht freigegeben — bitte warten Sie auf die Beauftragung per E-Mail.",
+    FallStatus.eingeordnet: "Dieser Auftrag ist noch nicht freigegeben — bitte warten Sie auf die Beauftragung per E-Mail.",
+    FallStatus.wartet_auf_freigabe: "Dieser Auftrag ist noch nicht freigegeben — bitte warten Sie auf die Beauftragung per E-Mail.",
     FallStatus.dienstleister_beauftragt: "Bitte bestätigen Sie einen Termin für den Vor-Ort-Besuch.",
     FallStatus.termin_bestaetigt: "Termin bestätigt. Bitte melden Sie sich, sobald die Arbeit erledigt ist.",
     FallStatus.arbeit_erledigt: "Als erledigt gemeldet — vielen Dank.",
+    FallStatus.rechnung_erfasst: "Dieser Auftrag ist bereits abgeschlossen — vielen Dank für die Erledigung.",
+    FallStatus.abgeschlossen: "Dieser Auftrag ist bereits abgeschlossen — vielen Dank für die Erledigung.",
+    FallStatus.eskaliert: "Dieser Fall wird gerade persönlich von der Hausverwaltung bearbeitet — bitte kontaktieren Sie uns direkt.",
+    FallStatus.abgebrochen: "Dieser Auftrag wurde storniert.",
 }
 
 
@@ -74,7 +89,7 @@ def _ansicht(session: Session, fall: Fall) -> DienstleisterPortalAnsicht:
         ticket_nummer=fall.ticket_nummer,
         betreff=fall.betreff,
         status=fall.status,
-        status_text=_STATUS_TEXT.get(fall.status, "Dieser Fall wird bereits anderweitig bearbeitet."),
+        status_text=_STATUS_TEXT[fall.status],
         objekt_adresse=f"{objekt.bezeichnung}, {objekt.adresse}" if objekt else None,
         melder_name=kontakt.name if kontakt else None,
         melder_telefon=kontakt.telefon if kontakt else None,

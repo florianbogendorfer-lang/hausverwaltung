@@ -133,3 +133,32 @@ def test_kunden_zugriffstoken_und_dienstleister_zugriffstoken_sind_unterschiedli
     # Der Kunden-Token darf keinen Zugriff auf das Dienstleister-Portal geben.
     antwort = client.get(f"/api/dienstleister-portal/{fall['zugriffstoken']}")
     assert antwort.status_code == 404
+
+
+def test_ansehen_vor_freigabe_zeigt_spezifischen_hinweis_statt_generischen_text():
+    # Regression: der Link steht schon im (noch nicht freigegebenen)
+    # Mailentwurf, den der Operator im Freigabe-Review sieht — klickt
+    # jemand ihn zu früh, bekam er/sie bislang denselben unspezifischen
+    # "wird bereits anderweitig bearbeitet"-Text wie ein längst
+    # abgeschlossener oder eskalierter Fall. status_text unterscheidet
+    # jetzt explizit zwischen "noch nicht freigegeben" und anderen
+    # Zuständen (siehe app/routers/dienstleister_portal.py::_STATUS_TEXT).
+    fall = client.post("/api/postfach/eingang", json=TUERSCHLOSS_MAIL).json()
+    assert fall["status"] == FallStatus.wartet_auf_freigabe.value
+
+    antwort = client.get(f"/api/dienstleister-portal/{fall['dienstleister_zugriffstoken']}")
+    assert antwort.status_code == 200
+    daten = antwort.json()
+    assert daten["status"] == FallStatus.wartet_auf_freigabe.value
+    assert "noch nicht freigegeben" in daten["status_text"]
+
+
+def test_status_text_deckt_jeden_fallstatus_ab():
+    # _STATUS_TEXT indiziert jetzt direkt (kein .get(..., default) mehr) —
+    # ein künftig neu hinzugefügter FallStatus ohne Eintrag würde die
+    # Portal-Ansicht mit einem KeyError abstürzen lassen. Dieser Test holt
+    # sich die aktuelle Zuordnung direkt aus dem Router-Modul, damit ein
+    # vergessener Eintrag hier auffällt statt erst live im Portal.
+    from app.routers.dienstleister_portal import _STATUS_TEXT
+
+    assert set(_STATUS_TEXT.keys()) == set(FallStatus)
