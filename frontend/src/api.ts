@@ -29,6 +29,16 @@ async function anfrage<T>(pfad: string, optionen?: RequestInit): Promise<T> {
     } catch {
       // kein JSON-Body — Statustext genügt
     }
+    if (antwort.status === 401) {
+      // Session serverseitig abgelaufen/ungültig geworden (z. B. nach
+      // Cookie-Ablauf oder einem Logout in einem anderen Tab), während der
+      // Bearbeiter noch auf einer geschützten Seite war — ohne dieses
+      // Event bliebe die Seite in einem inkonsistenten Zustand (verstreute
+      // "Fehler beim Laden"-Meldungen statt eines klaren Zurück-zum-Login).
+      // auth.tsx hört darauf und setzt den Nutzer zurück, App.tsx leitet
+      // dann über die bestehende !benutzer-Weiche automatisch um.
+      window.dispatchEvent(new Event("hv:unauthorized"));
+    }
     throw new ApiFehler(detail, antwort.status);
   }
   if (antwort.status === 204) return undefined as T;

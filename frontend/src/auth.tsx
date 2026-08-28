@@ -23,6 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLadend(false));
   }, []);
 
+  useEffect(() => {
+    // Siehe api.ts: bei jeder 401-Antwort (Session abgelaufen/ungültig)
+    // Nutzer zurücksetzen — App.tsx leitet dann automatisch zu /login um.
+    const zuruecksetzen = () => setBenutzer(null);
+    window.addEventListener("hv:unauthorized", zuruecksetzen);
+    return () => window.removeEventListener("hv:unauthorized", zuruecksetzen);
+  }, []);
+
   async function anmelden(email: string, passwort: string) {
     const eingeloggt = await api.post<Benutzer>("/auth/login", { email, passwort });
     setBenutzer(eingeloggt);
