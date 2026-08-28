@@ -57,9 +57,10 @@ Probeweise steht zusätzlich NVIDIA NIM (Nemotron, OpenAI-kompatible API)
 als Alternative zu Mistral bereit (`NvidiaLLMClient`) — **aber bewusst
 nicht per Konfiguration wählbar.** Der Umschalter dazu ist die
 Code-Konstante `NVIDIA_STATT_MISTRAL` in `backend/app/config.py`
-(Standard `False`): erst auf `True` setzen, dann `HV_LLM_PROVIDER=mistral`
-läuft tatsächlich über NVIDIA statt Mistral. Grund für den Code- statt
-Env-Umschalter: es gibt (Stand jetzt) kein zugesagtes NVIDIA-
+(aktuell `True`): solange sie auf `True` steht, läuft
+`HV_LLM_PROVIDER=mistral` tatsächlich über NVIDIA statt Mistral — auf
+`False` zurücksetzen, um wieder auf Mistral umzuschalten. Grund für den
+Code- statt Env-Umschalter: es gibt (Stand jetzt) kein zugesagtes NVIDIA-
 Produktionskontingent, nur einen persönlichen Zugang — ein Versehen in
 der Deploy-Konfiguration soll den Provider daher nicht unbemerkt
 umschalten können. Key über `HV_NVIDIA_API_KEY`, die bestehende

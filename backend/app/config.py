@@ -23,7 +23,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # steckt. Hier statt in model_router.py definiert, damit der Fail-Fast-
 # Check unten (_provider_und_key_zusammen_pruefen) den richtigen Key
 # verlangt, je nachdem wie die Konstante steht.
-NVIDIA_STATT_MISTRAL = False
+NVIDIA_STATT_MISTRAL = True
 
 
 class Settings(BaseSettings):

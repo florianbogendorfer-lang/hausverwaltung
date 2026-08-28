@@ -47,21 +47,28 @@ def test_cookie_secure_false_erlaubt_demo_passwoerter():
     assert settings.seed_user_passwort == "user1234"
 
 
-def test_llm_provider_mistral_ohne_key_schlaegt_fehl():
+# NVIDIA_STATT_MISTRAL steht aktuell auf True (siehe app/config.py) — die
+# folgenden Tests decken den Fail-Fast-Check daher für BEIDE Zustände des
+# Umschalters ab, statt sich auf den jeweils aktuellen Default zu verlassen.
+
+
+def test_llm_provider_mistral_ohne_nvidia_key_schlaegt_fehl_bei_aktiviertem_umschalter(monkeypatch):
+    monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", True)
+    with pytest.raises(ValueError, match="HV_NVIDIA_API_KEY fehlt"):
+        Settings(llm_provider="mistral", mistral_api_key=None, nvidia_api_key=None)
+
+
+def test_llm_provider_mistral_mit_nvidia_key_ist_gueltig_bei_aktiviertem_umschalter(monkeypatch):
+    monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", True)
+    Settings(llm_provider="mistral", mistral_api_key=None, nvidia_api_key="irgendein-key")
+
+
+def test_llm_provider_mistral_ohne_mistral_key_schlaegt_fehl_bei_deaktiviertem_umschalter(monkeypatch):
+    monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", False)
     with pytest.raises(ValueError, match="HV_MISTRAL_API_KEY fehlt"):
         Settings(llm_provider="mistral", mistral_api_key=None)
 
 
-def test_llm_provider_mistral_mit_key_ist_gueltig():
+def test_llm_provider_mistral_mit_mistral_key_ist_gueltig_bei_deaktiviertem_umschalter(monkeypatch):
+    monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", False)
     Settings(llm_provider="mistral", mistral_api_key="irgendein-key")
-
-
-def test_llm_provider_mistral_mit_aktiviertem_nvidia_umschalter_verlangt_nvidia_key(monkeypatch):
-    # NVIDIA_STATT_MISTRAL ist eine reine Code-Konstante (siehe
-    # app/config.py) — hier per monkeypatch aktiviert, um zu prüfen, dass
-    # der Fail-Fast-Check dann den richtigen Key verlangt (nicht mehr
-    # HV_MISTRAL_API_KEY, das bei aktiviertem Umschalter unbenutzt bliebe).
-    monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", True)
-    with pytest.raises(ValueError, match="HV_NVIDIA_API_KEY fehlt"):
-        Settings(llm_provider="mistral", mistral_api_key=None, nvidia_api_key=None)
-    Settings(llm_provider="mistral", mistral_api_key=None, nvidia_api_key="irgendein-key")

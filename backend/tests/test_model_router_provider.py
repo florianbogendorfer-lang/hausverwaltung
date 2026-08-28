@@ -27,7 +27,22 @@ def _settings_zuruecksetzen():
     settings.llm_provider, settings.anthropic_api_key, settings.mistral_api_key = ursprung
 
 
-def test_explizite_wahl_mistral():
+def test_explizite_wahl_mistral_aktueller_default():
+    # NVIDIA_STATT_MISTRAL steht aktuell auf True (app/config.py) — die
+    # Wahl "mistral" läuft also tatsächlich über NVIDIA. Dieser Test
+    # dokumentiert bewusst den JEWEILS AKTUELLEN Default, damit ein
+    # Zurückschalten der Konstante hier sofort auffällt, statt unbemerkt
+    # durchzurutschen.
+    settings.llm_provider = "mistral"
+    assert isinstance(_default_client(), NvidiaLLMClient)
+
+
+def test_explizite_wahl_mistral_mit_deaktiviertem_nvidia_umschalter(monkeypatch):
+    # Deckt den MistralLLMClient-Pfad unabhängig vom aktuellen Default ab
+    # — die bestehende Mistral-Anbindung bleibt bei aktiviertem Umschalter
+    # unverändert nutzbar, sobald NVIDIA_STATT_MISTRAL wieder auf False
+    # steht.
+    monkeypatch.setattr(config, "NVIDIA_STATT_MISTRAL", False)
     settings.llm_provider = "mistral"
     assert isinstance(_default_client(), MistralLLMClient)
 
@@ -54,16 +69,6 @@ def test_ohne_provider_wahl_und_ohne_key_verwendet_demo():
     settings.anthropic_api_key = None
     settings.mistral_api_key = None
     assert isinstance(_default_client(), DemoLLMClient)
-
-
-def test_explizite_wahl_mistral_mit_aktiviertem_nvidia_umschalter(monkeypatch):
-    # Der Umschalter (app/config.py::NVIDIA_STATT_MISTRAL) ist bewusst eine
-    # Code-Konstante, keine Env-Var/Settings-Feld (siehe Begründung dort) —
-    # hier per monkeypatch aktiviert, um das Umschalt-Verhalten selbst zu
-    # testen, ohne die bestehende Mistral-Anbindung anzufassen.
-    monkeypatch.setattr(config, "NVIDIA_STATT_MISTRAL", True)
-    settings.llm_provider = "mistral"
-    assert isinstance(_default_client(), NvidiaLLMClient)
 
 
 def test_mistral_client_sendet_system_und_user_nachricht():
