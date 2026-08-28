@@ -139,10 +139,18 @@ class NvidiaLLMClient:
     """Ruft NVIDIA NIM auf (integrate.api.nvidia.com, OpenAI-kompatible
     Chat-Completions-API) — probeweiser Ersatz für Mistral (Nemotron statt
     Mistral-Modelle), umschaltbar über `app.config.NVIDIA_STATT_MISTRAL`.
-    Kein Streaming (`stream=False` per Default): der Rest des Agent-Kerns
-    erwartet über das `LLMClient`-Protokoll eine fertige `LLMAntwort`, kein
-    Chunk-für-Chunk-Reasoning wie im NVIDIA-Beispielcode — Streaming würde
-    hier nur Komplexität ohne Nutzen hinzufügen."""
+
+    Streaming (`stream=True`), obwohl der Rest des Agent-Kerns über das
+    `LLMClient`-Protokoll nur eine fertige `LLMAntwort` sieht (die Chunks
+    werden hier serverseitig zusammengesetzt) — bewusst NICHT wie ein
+    einzelner nicht-streamender Request: dieses 120B-Modell kann bei einer
+    längeren Antwort (z. B. dem Mailentwurf) durchaus mehrere Sekunden pro
+    Token brauchen; ein nicht-streamender Request wartet auf die KOMPLETTE
+    Antwort in einem Stück und reißt das httpx-Read-Timeout, sobald die
+    Gesamtdauer es überschreitet ("The read operation timed out"), selbst
+    wenn das Modell die ganze Zeit über aktiv weiterantwortet. Bei
+    Streaming setzt dagegen jeder ankommende Chunk das Timeout zurück —
+    genau das Verhalten, das NVIDIAs eigenes Beispiel (stream=True) nutzt."""
 
     def __init__(self) -> None:
         self.modell_guenstig = settings.nvidia_modell_guenstig
@@ -153,12 +161,15 @@ class NvidiaLLMClient:
         if self._client is None:
             from openai import OpenAI
 
-            # Kurzes, explizites Timeout — siehe Begründung bei
-            # AnthropicLLMClient._get_client.
+            # Insgesamt großzügigeres Timeout als bei Anthropic/Mistral
+            # (25s) — dieses 120B-Modell antwortet spürbar langsamer;
+            # dank Streaming (siehe Docstring) betrifft dieses Timeout
+            # ohnehin nur die Pause ZWISCHEN zwei Chunks, nicht die
+            # Gesamtdauer der Antwort.
             self._client = OpenAI(
                 base_url="https://integrate.api.nvidia.com/v1",
                 api_key=settings.nvidia_api_key,
-                timeout=25.0,
+                timeout=60.0,
             )
         return self._client
 
@@ -167,17 +178,25 @@ class NvidiaLLMClient:
     ) -> LLMAntwort:
         client = self._get_client()
         start = time.monotonic()
-        response = client.chat.completions.create(
+        stream = client.chat.completions.create(
             model=modell,
             temperature=temperature,
+            max_tokens=2048,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
+            stream=True,
         )
+        teile: list[str] = []
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            inhalt = chunk.choices[0].delta.content
+            if inhalt:
+                teile.append(inhalt)
         dauer_ms = int((time.monotonic() - start) * 1000)
-        text = response.choices[0].message.content
-        return LLMAntwort(text=text, modell=modell, dauer_ms=dauer_ms)
+        return LLMAntwort(text="".join(teile), modell=modell, dauer_ms=dauer_ms)
 
 
 class SchemaValidierungFehlgeschlagen(Exception):

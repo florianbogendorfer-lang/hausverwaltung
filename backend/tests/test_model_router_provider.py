@@ -93,12 +93,30 @@ def test_mistral_client_sendet_system_und_user_nachricht():
     )
 
 
+def _fake_stream_chunk(inhalt: str | None):
+    chunk = MagicMock()
+    if inhalt is None:
+        chunk.choices = []
+    else:
+        chunk.choices = [MagicMock(delta=MagicMock(content=inhalt))]
+    return chunk
+
+
 def test_nvidia_client_sendet_system_und_user_nachricht():
+    # Regression: ein einzelner, nicht-streamender Request wartet auf die
+    # KOMPLETTE Antwort in einem Stück und reißt bei diesem (langsamen)
+    # 120B-Modell das httpx-Read-Timeout, obwohl das Modell durchgehend
+    # aktiv antwortet — siehe Docstring von NvidiaLLMClient. Der Test
+    # deckt daher gezielt das Streaming-Verhalten ab (mehrere Chunks,
+    # inkl. eines leeren "choices"-Chunks, wie er bei manchen NIM-Antworten
+    # vorkommt) statt einer einzelnen fertigen Antwort.
     client = NvidiaLLMClient()
-    fake_antwort = MagicMock()
-    fake_antwort.choices = [MagicMock(message=MagicMock(content='{"ok": true}'))]
     client._client = MagicMock()
-    client._client.chat.completions.create.return_value = fake_antwort
+    client._client.chat.completions.create.return_value = [
+        _fake_stream_chunk('{"ok": '),
+        _fake_stream_chunk(None),
+        _fake_stream_chunk("true}"),
+    ]
 
     antwort = client.complete("nvidia/nemotron-3-super-120b-a12b", "System", "User", temperature=0.0)
 
@@ -107,8 +125,10 @@ def test_nvidia_client_sendet_system_und_user_nachricht():
     client._client.chat.completions.create.assert_called_once_with(
         model="nvidia/nemotron-3-super-120b-a12b",
         temperature=0.0,
+        max_tokens=2048,
         messages=[
             {"role": "system", "content": "System"},
             {"role": "user", "content": "User"},
         ],
+        stream=True,
     )
