@@ -14,6 +14,7 @@ from app.main import app
 from app.models import Benutzer, BenutzerRolle, Dokument
 from app.routers.auth import login_rate_limiter
 from app.routers.postfach import get_dokumenten_index, postfach_rate_limiter
+from app.routers.ticket import ticket_rate_limiter
 from app.seed import seed
 from tests.fakes import fake_dokumenten_index
 
@@ -54,6 +55,10 @@ app.dependency_overrides[login_rate_limiter] = lambda: None
 # Override würde die Bremse reihenfolgeabhängig zuschlagen, sobald die
 # Suite wächst.
 app.dependency_overrides[postfach_rate_limiter] = lambda: None
+
+# Gleicher Grund: tests/test_ticket.py und andere ruft die öffentliche
+# Kundenansicht wiederholt über dieselbe TestClient-IP auf.
+app.dependency_overrides[ticket_rate_limiter] = lambda: None
 
 # §16 Phase 5 / §0: In-Memory-Index + Fake-Embedding statt des echten
 # Chroma-Modells — hält die Testsuite netzwerkfrei.

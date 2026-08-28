@@ -19,6 +19,16 @@ from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models import Fall, FallStatus, Nachricht, NachrichtRichtung
+from app.rate_limit import ip_rate_limit
+
+# Wie /auth/login und /postfach/eingang (OWASP API Security Top 10,
+# API4:2023 — Unrestricted Resource Consumption): der Zugriffstoken hat
+# zwar 192 Bit Entropie und ist damit nicht sinnvoll erratbar, aber ohne
+# Bremse könnte dieser öffentliche, unauthentifizierte Endpunkt trotzdem
+# für eine Flut an DB-Abfragen (und beim Fund eines gültigen Tokens für
+# automatisiertes Auslesen) missbraucht werden. 60/5min ist großzügig für
+# einen Kunden, der sein eigenes Ticket wiederholt neu lädt.
+ticket_rate_limiter = ip_rate_limit(max_versuche=60, fenster_sekunden=300)
 
 router = APIRouter(prefix="/ticket", tags=["ticket"])
 
@@ -66,7 +76,7 @@ def _kundenkorrespondenz(nachrichten: list[Nachricht]) -> list[Nachricht]:
     ]
 
 
-@router.get("/{zugriffstoken}", response_model=TicketAnsicht)
+@router.get("/{zugriffstoken}", response_model=TicketAnsicht, dependencies=[Depends(ticket_rate_limiter)])
 def ticket_ansehen(zugriffstoken: str, session: Session = Depends(get_session)) -> TicketAnsicht:
     fall = session.exec(select(Fall).where(Fall.zugriffstoken == zugriffstoken)).first()
     if fall is None or fall.geloescht:
