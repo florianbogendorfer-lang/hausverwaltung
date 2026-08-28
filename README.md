@@ -311,10 +311,13 @@ kollidieren, wenn beides aus demselben Origin kommt.
    statt später kryptisch beim ersten Mail-Eingang). Ebenfalls optional:
    `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/`HV_SMTP_PASSWORT`/
    `HV_SMTP_ABSENDER` für echten Mailversand (§16 Phase 6) — ohne diese
-   Variablen bleibt der Versand vollständig simuliert. **Empfohlen:**
+   Variablen bleibt der Versand vollständig simuliert. **Pflicht, sobald
+   `HV_COOKIE_SECURE` aktiv ist** (siehe unten):
    `HV_SEED_ADMIN_PASSWORT`/`HV_SEED_USER_PASSWORT` auf starke, zufällige
-   Werte setzen (siehe [Nutzer/Login](#nutzer-und-login)) — sonst trägt
-   der Admin-Login die im Repo sichtbaren Demo-Passwörter.
+   Werte setzen (siehe [Nutzer/Login](#nutzer-und-login)) — der Start
+   scheitert sonst bewusst sofort mit einer klaren Meldung, statt den
+   Admin-Login unbemerkt mit einem im Repo öffentlich sichtbaren
+   Demo-Passwort live zu schalten (`app/config.py`).
    `HV_COOKIE_SECURE` setzt `docker-entrypoint.sh` im Deploy-Pfad bereits
    automatisch auf `true` (TLS-Terminierung durch Clever Cloud), das muss
    normalerweise nicht manuell gesetzt werden.

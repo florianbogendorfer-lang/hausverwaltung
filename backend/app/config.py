@@ -66,8 +66,11 @@ class Settings(BaseSettings):
     # sollten HV_SEED_ADMIN_PASSWORT/HV_SEED_USER_PASSWORT gesetzt werden,
     # damit der öffentlich erreichbare Admin-Login nicht ein aus dem
     # Quellcode bekanntes, triviales Passwort trägt.
-    seed_admin_passwort: str = "admin123"
-    seed_user_passwort: str = "user1234"
+    _SEED_ADMIN_PASSWORT_DEFAULT = "admin123"
+    _SEED_USER_PASSWORT_DEFAULT = "user1234"
+
+    seed_admin_passwort: str = _SEED_ADMIN_PASSWORT_DEFAULT
+    seed_user_passwort: str = _SEED_USER_PASSWORT_DEFAULT
 
     @model_validator(mode="after")
     def _provider_und_key_zusammen_pruefen(self) -> "Settings":
@@ -82,6 +85,32 @@ class Settings(BaseSettings):
         if self.llm_provider == "anthropic" and not self.anthropic_api_key:
             raise ValueError(
                 "HV_LLM_PROVIDER=anthropic gesetzt, aber HV_ANTHROPIC_API_KEY fehlt."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _keine_demo_passwoerter_in_produktion(self) -> "Settings":
+        # cookie_secure=True heißt: wir laufen hinter TLS (docker-
+        # entrypoint.sh setzt das automatisch im Deploy-Pfad, siehe oben) —
+        # also ein öffentlich erreichbares Deployment, kein lokaler Dev-
+        # Server. Ohne diese Prüfung würde ein Betreiber, der HV_SEED_ADMIN_
+        # PASSWORT/HV_SEED_USER_PASSWORT vergisst, unbemerkt einen Admin-
+        # Account mit einem aus dem öffentlichen Quellcode bekannten,
+        # trivialen Passwort live schalten. Fail fast beim Start statt
+        # eines stillen Sicherheitslochs.
+        if self.cookie_secure and self.seed_admin_passwort == self._SEED_ADMIN_PASSWORT_DEFAULT:
+            raise ValueError(
+                "HV_COOKIE_SECURE ist aktiv (Produktions-Deploy), aber "
+                "HV_SEED_ADMIN_PASSWORT wurde nicht gesetzt — der Admin-Account "
+                "würde sonst mit dem öffentlich im Quellcode sichtbaren "
+                "Demo-Passwort angelegt."
+            )
+        if self.cookie_secure and self.seed_user_passwort == self._SEED_USER_PASSWORT_DEFAULT:
+            raise ValueError(
+                "HV_COOKIE_SECURE ist aktiv (Produktions-Deploy), aber "
+                "HV_SEED_USER_PASSWORT wurde nicht gesetzt — der User-Account "
+                "würde sonst mit dem öffentlich im Quellcode sichtbaren "
+                "Demo-Passwort angelegt."
             )
         return self
 
