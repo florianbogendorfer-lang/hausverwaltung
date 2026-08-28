@@ -93,3 +93,30 @@ def test_dienstleister_mit_fall_kann_nicht_geloescht_werden():
 
     response = client.delete(f"/api/dienstleister/{dienstleister_id}")
     assert response.status_code == 409
+
+
+def test_kontakt_anlegen_mit_unbekanntem_objekt_gibt_404():
+    response = client.post(
+        "/api/kontakte",
+        json={
+            "name": "Referenztest-Kontakt-2",
+            "rolle": "mieter",
+            "email": "referenztest2@example.test",
+            "objekt_id": 999999,
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_kontakt_aktualisieren_mit_unbekanntem_objekt_gibt_404():
+    kontakt_id = _kontakt()
+    response = client.put(
+        f"/api/kontakte/{kontakt_id}",
+        json={
+            "name": "Referenztest-Kontakt",
+            "rolle": "mieter",
+            "email": "referenztest@example.test",
+            "objekt_id": 999999,
+        },
+    )
+    assert response.status_code == 404

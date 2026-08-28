@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Fall, Kontakt, KontaktRolle
+from app.models import Fall, Kontakt, KontaktRolle, Objekt
 
 router = APIRouter(prefix="/kontakte", tags=["kontakte"])
 
@@ -31,9 +31,19 @@ def kontakt_details(kontakt_id: int, session: Session = Depends(get_session)) ->
     return kontakt
 
 
+def _objekt_referenz_pruefen(session: Session, objekt_id: Optional[int]) -> None:
+    # Ohne diese Prüfung würde SQLite (Dev/Tests) einen frei erfundenen
+    # objekt_id klaglos speichern (kein FK-Enforcement), Postgres (Prod)
+    # dagegen mit einem harten IntegrityError/500 statt einer
+    # verständlichen 404 abbrechen.
+    if objekt_id is not None and session.get(Objekt, objekt_id) is None:
+        raise HTTPException(status_code=404, detail="Objekt nicht gefunden")
+
+
 @router.post("", response_model=Kontakt, status_code=201)
 def kontakt_anlegen(eingabe: KontaktEingabe, session: Session = Depends(get_session)) -> Kontakt:
     """UI-4 — Stammdatenpflege (§10)."""
+    _objekt_referenz_pruefen(session, eingabe.objekt_id)
     kontakt = Kontakt(**eingabe.model_dump())
     session.add(kontakt)
     session.commit()
@@ -48,6 +58,7 @@ def kontakt_aktualisieren(
     kontakt = session.get(Kontakt, kontakt_id)
     if kontakt is None:
         raise HTTPException(status_code=404, detail="Kontakt nicht gefunden")
+    _objekt_referenz_pruefen(session, eingabe.objekt_id)
     for feld, wert in eingabe.model_dump().items():
         setattr(kontakt, feld, wert)
     session.add(kontakt)
