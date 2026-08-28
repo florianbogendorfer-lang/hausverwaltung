@@ -13,6 +13,10 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # Ohne explizites Limit gilt GitHub Actions' Default von 360 Minuten —
+    # ein hängender Test/Request würde sonst sechs Stunden lang CI-Minuten
+    # verbrauchen statt sichtbar zu scheitern.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -31,6 +35,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
