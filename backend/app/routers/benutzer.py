@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
+from app.audit_log import audit
 from app.auth import (
     PASSWORT_MIN_LAENGE,
     admin_erforderlich,
@@ -47,7 +48,11 @@ def liste(session: Session = Depends(get_session)) -> list[BenutzerAusgabe]:
 
 
 @router.post("", response_model=BenutzerAusgabe, status_code=201)
-def anlegen(eingabe: BenutzerEingabe, session: Session = Depends(get_session)) -> BenutzerAusgabe:
+def anlegen(
+    eingabe: BenutzerEingabe,
+    aktiver_benutzer: Benutzer = Depends(admin_erforderlich),
+    session: Session = Depends(get_session),
+) -> BenutzerAusgabe:
     # E-Mail case-insensitiv normalisieren (siehe app/auth.py::login_pruefen)
     # — sonst könnten "Admin@Example.test" und "admin@example.test" als
     # zwei verschiedene Konten angelegt werden, obwohl sie de facto
@@ -65,6 +70,12 @@ def anlegen(eingabe: BenutzerEingabe, session: Session = Depends(get_session)) -
     session.add(benutzer)
     session.commit()
     session.refresh(benutzer)
+    audit(
+        "benutzer_angelegt",
+        email=benutzer.email,
+        rolle=benutzer.rolle.value,
+        von=aktiver_benutzer.email,
+    )
     return _ausgabe(benutzer)
 
 
@@ -84,3 +95,4 @@ def loeschen(
         session.delete(sitzung)
     session.delete(benutzer)
     session.commit()
+    audit("benutzer_geloescht", email=benutzer.email, von=aktiver_benutzer.email)

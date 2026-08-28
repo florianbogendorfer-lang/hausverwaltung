@@ -23,6 +23,7 @@ import bcrypt
 from fastapi import Cookie, Depends, HTTPException, Response
 from sqlmodel import Session, delete, select
 
+from app.audit_log import audit
 from app.config import settings
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle, Sitzung
@@ -89,18 +90,25 @@ def login_pruefen(session: Session, email: str, passwort: str) -> Benutzer | Non
     # "ausgesperrt" fühlen. Benutzer.anlegen speichert email bereits
     # normalisiert (siehe app/routers/benutzer.py), daher reicht hier ein
     # Normalisieren der Eingabe für den Vergleich.
-    benutzer = session.exec(select(Benutzer).where(Benutzer.email == email.strip().lower())).first()
+    normalisierte_email = email.strip().lower()
+    benutzer = session.exec(select(Benutzer).where(Benutzer.email == normalisierte_email)).first()
     ziel_hash = benutzer.passwort_hash if benutzer is not None else _DUMMY_HASH
     # IMMER ausführen, auch wenn `benutzer` None ist oder gesperrt —
     # sonst wäre die Antwortzeit selbst das Leck.
     passwort_korrekt = passwort_pruefen(passwort, ziel_hash)
 
     if benutzer is None:
+        audit("login_fehlgeschlagen", email=normalisierte_email, grund="konto_unbekannt")
         return None
 
     gesperrt = benutzer.gesperrt_bis is not None and benutzer.gesperrt_bis > datetime.utcnow()
     if gesperrt or not passwort_korrekt:
         _fehlversuch_vermerken(session, benutzer)
+        audit(
+            "login_fehlgeschlagen",
+            email=normalisierte_email,
+            grund="konto_gesperrt" if gesperrt else "falsches_passwort",
+        )
         return None
 
     if benutzer.fehlversuche > 0 or benutzer.gesperrt_bis is not None:
@@ -108,6 +116,7 @@ def login_pruefen(session: Session, email: str, passwort: str) -> Benutzer | Non
         benutzer.gesperrt_bis = None
         session.add(benutzer)
         session.commit()
+    audit("login_erfolgreich", email=normalisierte_email)
     return benutzer
 
 
@@ -116,7 +125,15 @@ def _fehlversuch_vermerken(session: Session, benutzer: Benutzer) -> None:
     if benutzer.fehlversuche >= FEHLVERSUCHE_SCHWELLE:
         exponent = benutzer.fehlversuche - FEHLVERSUCHE_SCHWELLE
         sperrdauer = min(timedelta(minutes=2**exponent), MAX_SPERRDAUER)
+        neu_gesperrt = benutzer.gesperrt_bis is None
         benutzer.gesperrt_bis = datetime.utcnow() + sperrdauer
+        if neu_gesperrt:
+            audit(
+                "konto_gesperrt",
+                email=benutzer.email,
+                fehlversuche=benutzer.fehlversuche,
+                sperrdauer_minuten=int(sperrdauer.total_seconds() / 60),
+            )
     session.add(benutzer)
     session.commit()
 

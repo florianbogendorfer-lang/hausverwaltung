@@ -4,6 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, delete
 
+from app.audit_log import audit
 from app.auth import (
     PASSWORT_MIN_LAENGE,
     aktueller_benutzer,
@@ -120,6 +121,7 @@ def passwort_aendern(
     # allein darf keine Passwortänderung erlauben, z. B. bei einem kurz
     # unbeaufsichtigten, eingeloggten Gerät).
     if not passwort_pruefen(eingabe.aktuelles_passwort, benutzer.passwort_hash):
+        audit("passwort_aendern_fehlgeschlagen", email=benutzer.email)
         raise HTTPException(status_code=401, detail="Aktuelles Passwort falsch")
 
     benutzer.passwort_hash = passwort_hashen(eingabe.neues_passwort)
@@ -135,3 +137,4 @@ def passwort_aendern(
     session.exec(delete(Sitzung).where(bedingung))
 
     session.commit()
+    audit("passwort_geaendert", email=benutzer.email)
