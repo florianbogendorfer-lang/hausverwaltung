@@ -3,17 +3,23 @@ name = "hausverwaltung-agent"
 version = "0.1.0"
 description = "HITL-Agent für Hausverwaltung (Prototyp) — Backend"
 requires-python = ">=3.11"
+# Obergrenzen (aktuell größte getestete Major-Version, siehe pip freeze
+# dieser Session) statt rein unterer Schranken: das Docker-Image wird bei
+# jedem Deploy frisch aus `pip install .` gebaut (kein Lockfile) — ohne
+# Obergrenze könnte ein zukünftiger Breaking-Major-Release einer
+# Abhängigkeit den nächsten Deploy silent brechen, ohne dass sich am
+# eigenen Code etwas geändert hätte.
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "sqlmodel>=0.0.22",
-    "alembic>=1.13",
-    "pydantic-settings>=2.4",
-    "anthropic>=0.40",
-    "psycopg[binary]>=3.2",
-    "chromadb>=1.0",
-    "bcrypt>=4.1",
-    "mistralai>=1.0",
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+    "sqlmodel>=0.0.22,<1.0",
+    "alembic>=1.13,<2.0",
+    "pydantic-settings>=2.4,<3.0",
+    "anthropic>=0.40,<2.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "chromadb>=1.0,<2.0",
+    "bcrypt>=4.1,<6.0",
+    "mistralai>=1.0,<3.0",
 ]
 
 [project.optional-dependencies]
