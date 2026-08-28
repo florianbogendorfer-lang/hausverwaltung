@@ -2,10 +2,11 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.dienstleister import Gewerk
 from app.models.fall import FallTyp
+from app.validators import email_gueltig_pruefen
 
 
 class EingehendeMail(BaseModel):
@@ -15,6 +16,13 @@ class EingehendeMail(BaseModel):
     von: str = Field(max_length=320)  # RFC 5321 max. Mailadressenlänge
     betreff: str = Field(max_length=500)
     inhalt: str = Field(max_length=20_000)
+
+    # `von` landet unverändert als Nachricht.von und potenziell später als
+    # SMTP-Empfänger einer Antwort (siehe app.agent.mail_adapter) — ein
+    # echter Mailserver würde ein syntaktisch ungültiges From nie
+    # zustellen, die simulierte Einspielung hier sollte also nicht
+    # großzügiger sein als die Realität, die sie nachbildet.
+    _von_gueltig = field_validator("von")(email_gueltig_pruefen)
 
 
 class Einordnung(BaseModel):
