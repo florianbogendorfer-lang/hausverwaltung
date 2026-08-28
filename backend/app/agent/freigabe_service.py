@@ -11,7 +11,7 @@ oder abgelehnt werden — Doppelausführung ist ausgeschlossen.
 
 from datetime import datetime
 
-from sqlmodel import Session
+from sqlmodel import Session, update
 
 from app.agent.mail_adapter import MailAdapter, get_mail_adapter
 from app.agent.tools import log_aktion
@@ -42,11 +42,25 @@ def ist_ueberfaellig(freigabe: Freigabe) -> bool:
     return alter.total_seconds() > settings.freigabe_timeout_stunden * 3600
 
 
-def _sicherstellen_offen(freigabe: Freigabe) -> None:
-    if freigabe.status != FreigabeStatus.offen:
+def _atomar_reservieren(session: Session, freigabe: Freigabe, neuer_status: FreigabeStatus) -> None:
+    """FR-HITL-8 unter Nebenläufigkeit: ein reiner Python-Check auf
+    `freigabe.status == offen` vor dem Ausführen der Seiteneffekte hat ein
+    Time-of-Check-to-Time-of-Use-Fenster — zwei gleichzeitige Requests
+    (Doppelklick, zwei Bearbeiter) könnten beide den alten Status lesen und
+    beide die Aktion ausführen. Ein bedingtes UPDATE (WHERE status='offen')
+    ist dagegen atomar auf DB-Ebene: nur der Request, dessen UPDATE
+    tatsächlich eine Zeile trifft, darf fortfahren."""
+    ergebnis = session.exec(
+        update(Freigabe)
+        .where(Freigabe.id == freigabe.id, Freigabe.status == FreigabeStatus.offen)
+        .values(status=neuer_status)
+    )
+    session.commit()
+    if ergebnis.rowcount != 1:
         raise FreigabeBereitsEntschieden(
-            f"Freigabe {freigabe.id} wurde bereits entschieden (Status: {freigabe.status.value})."
+            f"Freigabe {freigabe.id} wurde bereits entschieden."
         )
+    session.refresh(freigabe)
 
 
 def freigeben(
@@ -59,7 +73,12 @@ def freigeben(
     """Freigeben, optional nach Bearbeitung des Entwurfs (FR-HITL-5). Der
     tatsächliche Versand läuft über den (austauschbaren) MailAdapter —
     §16 Phase 6, Default bleibt simuliert."""
-    _sicherstellen_offen(freigabe)
+    neuer_status = (
+        FreigabeStatus.bearbeitet_freigegeben
+        if bearbeiteter_text is not None
+        else FreigabeStatus.freigegeben
+    )
+    _atomar_reservieren(session, freigabe, neuer_status)
     fall = session.get(Fall, freigabe.fall_id)
 
     if freigabe.aktionstyp == Aktionstyp.nachricht_senden:
@@ -77,11 +96,6 @@ def freigeben(
     fall.geaendert_am = datetime.utcnow()
     session.add(fall)
 
-    freigabe.status = (
-        FreigabeStatus.bearbeitet_freigegeben
-        if bearbeiteter_text is not None
-        else FreigabeStatus.freigegeben
-    )
     freigabe.entscheider = entscheider
     freigabe.entscheidung_am = datetime.utcnow()
     session.add(freigabe)
@@ -106,7 +120,7 @@ def freigeben(
 
 def ablehnen(session: Session, freigabe: Freigabe, entscheider: str, grund: str) -> Freigabe:
     """Ablehnen — der Grund fließt als Notiz zurück in den Fall (FR-HITL-5)."""
-    _sicherstellen_offen(freigabe)
+    _atomar_reservieren(session, freigabe, FreigabeStatus.abgelehnt)
     fall = session.get(Fall, freigabe.fall_id)
 
     if freigabe.aktionstyp == Aktionstyp.nachricht_senden:
@@ -118,7 +132,6 @@ def ablehnen(session: Session, freigabe: Freigabe, entscheider: str, grund: str)
     fall.geaendert_am = datetime.utcnow()
     session.add(fall)
 
-    freigabe.status = FreigabeStatus.abgelehnt
     freigabe.entscheider = entscheider
     freigabe.entscheidung_am = datetime.utcnow()
     freigabe.ablehnungsgrund = grund
