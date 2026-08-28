@@ -68,16 +68,19 @@ Funktion injizierbar: Tests laufen mit einem In-Memory-Index und einem
 deterministischen Hash-Embedding (`tests/fakes.py::FakeEmbeddingFunction`)
 weiterhin komplett netzwerkfrei (§0).
 
-**Bekannte CVE, betrifft dieses Deployment nicht:** chromadb 1.0.0–1.5.9
-(installiert: 1.5.9, zum Zeitpunkt dieser Notiz noch ohne offiziellen
-Patch) hat eine kritische Pre-Auth-RCE-Lücke (CVE-2026-45829, CVSS 10.0)
-— aber ausschließlich im eigenständigen, netzwerkexponierten Chroma-
-FastAPI-Server (`chroma run`). Diese App startet nie einen solchen
-Server; `chromadb.PersistentClient` läuft rein lokal/eingebettet ohne
-eigenen Netzwerk-Listener (siehe Sicherheitshinweis in
-`vector_store.py`). Trotzdem im Auge behalten und aktualisieren, sobald
-ein Patch erscheint — und diesen eingebetteten Modus nicht durch einen
-`chroma run`-Server ersetzen, solange die Lücke offen ist.
+**Bekannte CVEs, betreffen dieses Deployment nicht:** `pip-audit` meldet
+für chromadb 1.5.9 (installiert, zum Zeitpunkt dieser Notiz noch ohne
+offiziellen Patch) vier offene CVEs — u. a. CVE-2026-45829 (CVSS 10.0,
+Pre-Auth-RCE) und CVE-2026-45833 (Code-Injection) im eigenständigen,
+netzwerkexponierten Chroma-FastAPI-Server (`chroma run`), sowie
+CVE-2026-45830/-45831 in Chromas optionalem RBAC-Autorisierungs-
+Provider für Multi-Tenant-Server-Deployments. Diese App startet nie
+einen solchen Server und konfiguriert keinen Autorisierungs-Provider;
+`chromadb.PersistentClient` läuft rein lokal/eingebettet ohne eigenen
+Netzwerk-Listener (siehe Sicherheitshinweis in `vector_store.py`).
+Trotzdem im Auge behalten und aktualisieren, sobald Patches erscheinen
+— und diesen eingebetteten Modus nicht durch einen `chroma run`-Server
+oder eine RBAC-Konfiguration ersetzen, solange die Lücken offen sind.
 
 **Phase 6 — Mail-Adapter-Architektur (bewusst weiter simuliert):**
 `app/agent/mail_adapter.py` formalisiert den ausgehenden Kanal als
@@ -209,6 +212,13 @@ bereits vorab gebacken (siehe `Dockerfile`).
 cd backend && ruff check .          # Pyflakes + Pycodestyle-Kernregeln
 cd frontend && npx oxlint           # React-/TS-Lint
 cd frontend && npx tsc -b --noEmit  # TypeScript strict mode
+
+# CVE-Scan gegen die tatsächlich installierten Versionen (nicht nur
+# gegen die Versionsbereiche in pyproject.toml/package-lock.json) —
+# unregelmäßig laufen lassen, deckt z. B. die dokumentierte
+# chromadb-Lücke oben auf.
+cd backend && pip install pip-audit && python -m pip_audit
+cd frontend && npm audit
 ```
 
 `.github/workflows/ci.yml` führt Tests, Linter und den Produktions-Build

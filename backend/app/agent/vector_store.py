@@ -11,18 +11,23 @@ Der Index ist abgeleitet: er wird bei jedem App-Start aus der Tabelle
 System of Record. Embedding-Funktion ist injizierbar (wie `ModelRouter`),
 damit Tests ohne Modell-Download/Netzwerk laufen (§0).
 
-SICHERHEITSHINWEIS (CVE-2026-45829, CVSS 10.0, chromadb 1.0.0–1.5.9,
-noch ungepatcht): eine Pre-Authentication-RCE-Lücke im *Python-basierten
+SICHERHEITSHINWEIS (`pip-audit` findet für chromadb 1.5.9 vier offene
+CVEs, alle noch ungepatcht): CVE-2026-45829 (CVSS 10.0, Pre-Auth-RCE)
+und CVE-2026-45833 (Code-Injection) betreffen den *Python-basierten
 Chroma-FastAPI-Server* (gestartet über `chroma run`, exponiert u. a.
-`/api/v2/tenants/{tenant}/databases/{db}/collections` mit
-angreifbarem `trust_remote_code`). Betrifft NICHT diesen Code:
+`/api/v2/tenants/{tenant}/databases/{db}/collections` mit angreifbarem
+`trust_remote_code`). CVE-2026-45830/-45831 betreffen ausschließlich
+Chromas optionalen `SimpleRBACAuthorizationProvider` (Multi-Tenant-
+Autorisierung für Server-Deployments). Betrifft NICHT diesen Code:
 `chromadb.PersistentClient` (siehe `_default_client` unten) ist ein rein
-lokaler, eingebetteter Client ohne eigenen Netzwerk-Listener — hier wird
-nirgends ein Chroma-Server gestartet oder eine Chroma-eigene HTTP-API
-exponiert; der einzige nach außen erreichbare Server ist unsere eigene
-FastAPI-App. **Diesen eingebetteten Modus nicht durch einen
+lokaler, eingebetteter Client ohne eigenen Netzwerk-Listener und ohne
+Auth-/RBAC-Provider — hier wird nirgends ein Chroma-Server gestartet,
+keine Chroma-eigene HTTP-API exponiert und kein Autorisierungs-Provider
+konfiguriert; der einzige nach außen erreichbare Server ist unsere
+eigene FastAPI-App. **Diesen eingebetteten Modus nicht durch einen
 netzwerkexponierten Chroma-Server (`chroma run` / `chromadb.HttpClient`)
-ersetzen, solange diese CVE offen ist** — sonst greift die Lücke.
+oder eine RBAC-Konfiguration ersetzen, solange diese CVEs offen sind**
+— sonst greifen die Lücken.
 """
 
 import chromadb
