@@ -57,3 +57,14 @@ def test_unterstrich_im_suchbegriff_matcht_nicht_beliebiges_zeichen():
     with _temporaerer_kontakt("MaxXMustermann", "maxx@example.test") as session:
         treffer = tools.kontakt_suchen(session, "Max_Mustermann")
         assert treffer is None
+
+
+def test_findet_kontakt_unabhaengig_von_gross_kleinschreibung():
+    # .ilike() statt .like() — SQLite ist bei LIKE ohnehin schon
+    # case-insensitiv (dieser Test würde also auch ohne den Fix grün
+    # sein), Postgres (Prod) dagegen nicht: der Fix garantiert dasselbe
+    # Verhalten dialektübergreifend, siehe Kommentar in tools.py.
+    with _temporaerer_kontakt("Erika Musterfrau", "ERIKA.MUSTERFRAU@EXAMPLE.TEST") as session:
+        treffer = tools.kontakt_suchen(session, "erika.musterfrau@example.test")
+        assert treffer is not None
+        assert treffer.name == "Erika Musterfrau"

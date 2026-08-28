@@ -101,12 +101,20 @@ def kontakt_suchen(session: Session, suchbegriff: str) -> Optional[Kontakt]:
     LIKE-Sonderzeichen (% und _), die zufällig im Namen/der Mailadresse
     vorkommen, die Suchsemantik verfälschen (z. B. würde "50% Rabatt" als
     Suchbegriff zu einem beliebige-Zeichen-Platzhalter statt eines
-    Literalzeichens)."""
+    Literalzeichens).
+
+    `.ilike()` statt `.like()`: SQLite behandelt LIKE standardmäßig
+    case-insensitiv, Postgres (Prod-DB, siehe app/db.py) dagegen
+    case-sensitiv — mit `.like()` hätte sich die Melder-Erkennung also
+    zwischen lokalem Test und Deploy unterschiedlich verhalten können.
+    `.ilike()` ist über SQLAlchemy dialektübergreifend garantiert
+    case-insensitiv (Postgres: natives ILIKE, SQLite: äquivalent zu
+    `.like()`)."""
     escaped = suchbegriff.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     muster = f"%{escaped}%"
     return session.exec(
         select(Kontakt).where(
-            (Kontakt.name.like(muster, escape="\\")) | (Kontakt.email.like(muster, escape="\\"))
+            (Kontakt.name.ilike(muster, escape="\\")) | (Kontakt.email.ilike(muster, escape="\\"))
         )
     ).first()
 
