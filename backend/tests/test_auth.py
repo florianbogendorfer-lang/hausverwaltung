@@ -2,11 +2,16 @@
 wird hier die globale `aktueller_benutzer`-Test-Override (siehe conftest.py)
 bewusst kurz entfernt, damit die tatsächliche Session-/Cookie-Logik läuft."""
 
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
 from app.auth import aktueller_benutzer
 from app.main import app
+from app.models import Benutzer, Sitzung
+from tests.conftest import engine
 
 
 @pytest.fixture
@@ -179,3 +184,30 @@ def test_login_sperrt_konto_nach_mehreren_fehlversuchen(echter_login_client: Tes
         json={"email": "lockout-test@example.test", "passwort": passwort},
     )
     assert gesperrt.status_code == 401
+
+
+def test_login_raeumt_abgelaufene_sitzungen_auf(echter_login_client: TestClient):
+    """Ohne Cron/Hintergrundjob würde die sitzungen-Tabelle in einem lang
+    laufenden Deployment unbegrenzt wachsen — ein Login räumt abgelaufene
+    Zeilen opportunistisch mit weg (siehe app/auth.py::sitzung_anlegen)."""
+    with Session(engine) as session:
+        admin_id = session.exec(
+            select(Benutzer.id).where(Benutzer.email == "admin@example.test")
+        ).one()
+        abgelaufen = Sitzung(
+            token="abgelaufenes-test-token",
+            benutzer_id=admin_id,
+            laeuft_ab_am=datetime.utcnow() - timedelta(days=1),
+        )
+        session.add(abgelaufen)
+        session.commit()
+
+    echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
+    )
+
+    with Session(engine) as session:
+        noch_da = session.exec(
+            select(Sitzung).where(Sitzung.token == "abgelaufenes-test-token")
+        ).first()
+        assert noch_da is None

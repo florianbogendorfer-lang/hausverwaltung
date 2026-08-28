@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 import bcrypt
 from fastapi import Cookie, Depends, HTTPException, Response
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.config import settings
 from app.db import get_session
@@ -96,6 +96,13 @@ def _fehlversuch_vermerken(session: Session, benutzer: Benutzer) -> None:
 
 
 def sitzung_anlegen(session: Session, benutzer: Benutzer, response: Response) -> Sitzung:
+    # Kein Cron/Hintergrundjob nötig — ohne irgendein Aufräumen würde die
+    # sitzungen-Tabelle in einem lang laufenden Deployment unbegrenzt
+    # wachsen (jede Session bleibt nach Ablauf als Karteileiche stehen).
+    # Ein Login ist ein günstiger, natürlicher Zeitpunkt, um abgelaufene
+    # Zeilen opportunistisch mit wegzuräumen.
+    session.exec(delete(Sitzung).where(Sitzung.laeuft_ab_am < datetime.utcnow()))
+
     token = secrets.token_urlsafe(32)
     sitzung = Sitzung(
         token=token, benutzer_id=benutzer.id, laeuft_ab_am=datetime.utcnow() + SITZUNGSDAUER
