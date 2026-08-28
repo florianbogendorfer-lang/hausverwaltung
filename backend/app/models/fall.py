@@ -57,9 +57,9 @@ class Fall(SQLModel, table=True):
     zugriffstoken: str = Field(default_factory=_zugriffstoken_erzeugen, unique=True, index=True)
     typ: FallTyp
     gewerk: Optional[Gewerk] = None
-    objekt_id: Optional[int] = Field(default=None, foreign_key="objekte.id")
-    melder_kontakt_id: Optional[int] = Field(default=None, foreign_key="kontakte.id")
-    dienstleister_id: Optional[int] = Field(default=None, foreign_key="dienstleister.id")
+    objekt_id: Optional[int] = Field(default=None, foreign_key="objekte.id", index=True)
+    melder_kontakt_id: Optional[int] = Field(default=None, foreign_key="kontakte.id", index=True)
+    dienstleister_id: Optional[int] = Field(default=None, foreign_key="dienstleister.id", index=True)
     status: FallStatus = FallStatus.neu
     betreff: str
     zusammenfassung: Optional[str] = None

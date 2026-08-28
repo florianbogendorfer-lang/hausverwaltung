@@ -19,4 +19,4 @@ class Kontakt(SQLModel, table=True):
     rolle: KontaktRolle
     email: str
     telefon: Optional[str] = None
-    objekt_id: Optional[int] = Field(default=None, foreign_key="objekte.id")
+    objekt_id: Optional[int] = Field(default=None, foreign_key="objekte.id", index=True)
