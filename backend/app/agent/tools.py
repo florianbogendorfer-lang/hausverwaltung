@@ -11,6 +11,7 @@ passiert erst in `app.agent.freigabe_service`, wenn der Operator freigibt.
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.agent.model_router import ModellStufe, ModelRouter
@@ -154,14 +155,35 @@ def dokumente_durchsuchen(
     return [dokumente[i] for i in treffer_ids if i in dokumente]
 
 
+_FALL_ANLEGEN_MAX_VERSUCHE = 5
+
+
 def fall_anlegen(session: Session, typ: FallTyp, betreff: str) -> Fall:
-    """Fall anlegen (reversibel, nur protokolliert — keine Freigabe nötig)."""
-    fall = Fall(typ=typ, betreff=betreff, status=FallStatus.neu)
-    session.add(fall)
-    session.commit()
-    session.refresh(fall)
-    log_aktion(session, fall.id, Akteur.agent, "fall:angelegt", {"typ": typ.value})
-    return fall
+    """Fall anlegen (reversibel, nur protokolliert — keine Freigabe nötig).
+
+    `ticket_nummer` hat bewusst nur 32 Bit Entropie (kurz, für Menschen
+    aussprech-/nennbar, siehe app.models.fall._ticket_nummer_erzeugen) —
+    das macht eine zufällige Kollision mit wachsendem Datenbestand nicht
+    mehr vernachlässigbar (Geburtstagsparadoxon: ~50 % Kollisions-
+    wahrscheinlichkeit bereits ab ca. 80.000 angelegten Fällen). Ohne
+    Retry würde der UNIQUE-Constraint-Verstoß hier als unbehandelter
+    500er durchschlagen. Jeder Versuch erzeugt einen komplett neuen
+    Zufallswert (Field(default_factory=...)) — die Wahrscheinlichkeit
+    mehrerer Kollisionen in Folge ist verschwindend gering."""
+    for versuch in range(_FALL_ANLEGEN_MAX_VERSUCHE):
+        fall = Fall(typ=typ, betreff=betreff, status=FallStatus.neu)
+        session.add(fall)
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            if versuch == _FALL_ANLEGEN_MAX_VERSUCHE - 1:
+                raise
+            continue
+        session.refresh(fall)
+        log_aktion(session, fall.id, Akteur.agent, "fall:angelegt", {"typ": typ.value})
+        return fall
+    raise AssertionError("unerreichbar")
 
 
 def fall_aktualisieren(session: Session, fall: Fall, **felder) -> Fall:
