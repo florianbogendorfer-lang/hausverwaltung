@@ -1,7 +1,14 @@
 """Löschen von Objekt/Kontakt/Dienstleister muss abgelehnt werden, solange
 ein Fall darauf verweist — sonst würde SQLite (Dev/Tests) den Verweis
 klaglos verwaisen lassen und Postgres (Prod) mit einem harten
-IntegrityError/500 statt einer verständlichen Fehlermeldung abbrechen."""
+IntegrityError/500 statt einer verständlichen Fehlermeldung abbrechen.
+
+Aufräumen ist hier bewusst explizit (nicht nur "möglichst"): andere Tests
+(tests/test_stammdaten_api.py) zählen exakt die Anzahl der Seed-Objekte/
+-Kontakte/-Dienstleister auf der gemeinsamen, sessionweiten Test-DB (siehe
+conftest.py) — ohne Aufräumen wären diese Zählungen nur durch die
+zufällige alphabetische Dateireihenfolge korrekt, nicht durch echte
+Testisolation."""
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -11,6 +18,16 @@ from app.models import Dienstleister, Fall, FallStatus, FallTyp, Gewerk, Kontakt
 from tests.conftest import engine
 
 client = TestClient(app)
+
+
+def _aufraeumen(modell, id_: int | None) -> None:
+    if id_ is None:
+        return
+    with Session(engine) as session:
+        instanz = session.get(modell, id_)
+        if instanz is not None:
+            session.delete(instanz)
+            session.commit()
 
 
 def _objekt() -> int:
@@ -47,52 +64,68 @@ def _dienstleister() -> int:
         return dienstleister.id
 
 
-def _fall(**kwargs) -> None:
+def _fall(**kwargs) -> int:
     with Session(engine) as session:
         fall = Fall(
             typ=FallTyp.reparaturmeldung, betreff="Referenztest-Fall", status=FallStatus.neu, **kwargs
         )
         session.add(fall)
         session.commit()
+        session.refresh(fall)
+        return fall.id
 
 
 def test_objekt_mit_fall_kann_nicht_geloescht_werden():
     objekt_id = _objekt()
-    _fall(objekt_id=objekt_id)
-
-    response = client.delete(f"/api/objekte/{objekt_id}")
-    assert response.status_code == 409
+    fall_id = _fall(objekt_id=objekt_id)
+    try:
+        response = client.delete(f"/api/objekte/{objekt_id}")
+        assert response.status_code == 409
+    finally:
+        _aufraeumen(Fall, fall_id)
+        _aufraeumen(Objekt, objekt_id)
 
 
 def test_objekt_mit_kontakt_kann_nicht_geloescht_werden():
     objekt_id = _objekt()
-    _kontakt(objekt_id=objekt_id)
-
-    response = client.delete(f"/api/objekte/{objekt_id}")
-    assert response.status_code == 409
+    kontakt_id = _kontakt(objekt_id=objekt_id)
+    try:
+        response = client.delete(f"/api/objekte/{objekt_id}")
+        assert response.status_code == 409
+    finally:
+        _aufraeumen(Kontakt, kontakt_id)
+        _aufraeumen(Objekt, objekt_id)
 
 
 def test_unreferenziertes_objekt_kann_geloescht_werden():
     objekt_id = _objekt()
-
-    response = client.delete(f"/api/objekte/{objekt_id}")
-    assert response.status_code == 204
+    try:
+        response = client.delete(f"/api/objekte/{objekt_id}")
+        assert response.status_code == 204
+    finally:
+        _aufraeumen(Objekt, objekt_id)  # No-op, falls die Löschung oben erfolgreich war.
 
 
 def test_kontakt_mit_fall_kann_nicht_geloescht_werden():
     kontakt_id = _kontakt()
-    _fall(melder_kontakt_id=kontakt_id)
-
-    response = client.delete(f"/api/kontakte/{kontakt_id}")
-    assert response.status_code == 409
+    fall_id = _fall(melder_kontakt_id=kontakt_id)
+    try:
+        response = client.delete(f"/api/kontakte/{kontakt_id}")
+        assert response.status_code == 409
+    finally:
+        _aufraeumen(Fall, fall_id)
+        _aufraeumen(Kontakt, kontakt_id)
 
 
 def test_dienstleister_mit_fall_kann_nicht_geloescht_werden():
     dienstleister_id = _dienstleister()
-    _fall(dienstleister_id=dienstleister_id)
-
-    response = client.delete(f"/api/dienstleister/{dienstleister_id}")
-    assert response.status_code == 409
+    fall_id = _fall(dienstleister_id=dienstleister_id)
+    try:
+        response = client.delete(f"/api/dienstleister/{dienstleister_id}")
+        assert response.status_code == 409
+    finally:
+        _aufraeumen(Fall, fall_id)
+        _aufraeumen(Dienstleister, dienstleister_id)
 
 
 def test_kontakt_anlegen_mit_unbekanntem_objekt_gibt_404():
@@ -110,13 +143,16 @@ def test_kontakt_anlegen_mit_unbekanntem_objekt_gibt_404():
 
 def test_kontakt_aktualisieren_mit_unbekanntem_objekt_gibt_404():
     kontakt_id = _kontakt()
-    response = client.put(
-        f"/api/kontakte/{kontakt_id}",
-        json={
-            "name": "Referenztest-Kontakt",
-            "rolle": "mieter",
-            "email": "referenztest@example.test",
-            "objekt_id": 999999,
-        },
-    )
-    assert response.status_code == 404
+    try:
+        response = client.put(
+            f"/api/kontakte/{kontakt_id}",
+            json={
+                "name": "Referenztest-Kontakt",
+                "rolle": "mieter",
+                "email": "referenztest@example.test",
+                "objekt_id": 999999,
+            },
+        )
+        assert response.status_code == 404
+    finally:
+        _aufraeumen(Kontakt, kontakt_id)
