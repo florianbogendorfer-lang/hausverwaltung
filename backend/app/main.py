@@ -19,9 +19,9 @@ Dockerfile + `FRONTEND_DIST`-Block unten).
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from app.auth import aktueller_benutzer
@@ -83,23 +83,45 @@ app.add_middleware(
 # einzelnen Feld-Obergrenzen (max_length, siehe Router) überhaupt zu sehen
 # bekommt — die greifen erst NACH dem vollständigen Einlesen/Parsen des
 # Bodies. 1 MB ist großzügig für die größte erwartete Nutzlast (Mailtext
-# max. 20.000 Zeichen, siehe app/agent/schemas.py) und lehnt früh per
-# Content-Length ab, ohne den Body überhaupt zu lesen.
+# max. 20.000 Zeichen, siehe app/agent/schemas.py).
 _MAX_BODY_BYTES = 1 * 1024 * 1024
 
 
-@app.middleware("http")
-async def body_groesse_begrenzen(request: Request, call_next):
-    content_length = request.headers.get("content-length")
-    if content_length is not None:
-        try:
-            if int(content_length) > _MAX_BODY_BYTES:
-                return JSONResponse(
-                    status_code=413, content={"detail": "Anfrage zu groß."}
-                )
-        except ValueError:
-            pass
-    return await call_next(request)
+class KoerpergroesseBegrenzenMiddleware:
+    """Reine ASGI-Middleware statt `@app.middleware("http")`: eine reine
+    Content-Length-Prüfung (frühere Version dieser Middleware) schützt
+    NICHT gegen Transfer-Encoding: chunked — dabei fehlt der Content-Length-
+    Header völlig, ein Angreifer könnte darüber einen beliebig großen Body
+    einschleusen, ohne dass die Header-Prüfung je greift. Diese Middleware
+    zählt stattdessen die tatsächlich am ASGI-`receive`-Kanal eintreffenden
+    Bytes selbst — unabhängig von der Kodierung — und bricht ab, sobald das
+    Limit überschritten wird, bevor FastAPI/Pydantic den Body vollständig in
+    den Speicher liest."""
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        gesehen = 0
+
+        async def begrenztes_receive():
+            nonlocal gesehen
+            nachricht = await receive()
+            if nachricht["type"] == "http.request":
+                gesehen += len(nachricht.get("body", b""))
+                if gesehen > self.max_bytes:
+                    raise HTTPException(status_code=413, detail="Anfrage zu groß.")
+            return nachricht
+
+        await self.app(scope, begrenztes_receive, send)
+
+
+app.add_middleware(KoerpergroesseBegrenzenMiddleware, max_bytes=_MAX_BODY_BYTES)
 
 
 # OWASP Secure Headers Project: Basisschutz gegen MIME-Sniffing, Clickjacking
