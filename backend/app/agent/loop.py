@@ -30,8 +30,19 @@ HAUSVERWALTUNG_ABSENDER = "hausverwaltung@example.test"
 
 
 def bearbeite_eingehende_mail(
-    session: Session, router: ModelRouter, index: DokumentenIndex, mail: EingehendeMail
+    session: Session,
+    router: ModelRouter,
+    index: DokumentenIndex,
+    mail: EingehendeMail,
+    basis_url: str | None = None,
 ) -> Fall:
+    """`basis_url` ist die öffentliche Basis-URL für den Terminportal-Link
+    in der Beauftragungsmail (siehe unten) — vom Aufrufer (app/routers/
+    postfach.py) aus dem eingehenden Request abgeleitet, da die simulierte
+    Mail-Einspielung ohnehin nur über die eigene, gerade bedienende Domain
+    läuft (kein echter IMAP-Betrieb, §2.2). `HV_OEFFENTLICHE_BASIS_URL`
+    bleibt als expliziter Override nutzbar (z. B. eine eigene Domain statt
+    der Clever-Cloud-Vorschau-URL) und hat Vorrang, wenn gesetzt."""
     # Im MVP ist „reparaturmeldung" der einzige unterstützte Falltyp (§1),
     # daher kann der Fall sofort angelegt werden — Trace-Einträge (DM-8)
     # benötigen von Anfang an eine gültige fall_id.
@@ -97,7 +108,9 @@ def bearbeite_eingehende_mail(
     # nicht automatisch erneut angestoßen (FR-HITL-6: im Zweifel
     # eskalieren statt stillschweigend hängen bleiben).
     try:
-        return _anreichern_und_entwerfen(session, router, index, trace, fall, mail, einordnung)
+        return _anreichern_und_entwerfen(
+            session, router, index, trace, fall, mail, einordnung, basis_url
+        )
     except Exception as exc:  # noqa: BLE001 — bewusst breit, siehe Kommentar oben
         trace.log(TracePhase.tool_result, f"Unerwarteter Fehler bei der Bearbeitung: {exc}")
         return tools.fall_eskalieren(
@@ -113,6 +126,7 @@ def _anreichern_und_entwerfen(
     fall: Fall,
     mail: EingehendeMail,
     einordnung: Einordnung,
+    basis_url: str | None,
 ) -> Fall:
     if einordnung.konfidenz < settings.konfidenz_schwelle:
         trace.log(
@@ -221,15 +235,17 @@ def _anreichern_und_entwerfen(
     # Link zum Terminportal deterministisch anhängen statt dem LLM-Entwurf
     # zu überlassen — der Dienstleister bestätigt den Termin damit
     # strukturiert über ein Formular statt per Freitext-Mail-Antwort, die
-    # der Agent sonst unzuverlässig parsen müsste. Ohne konfigurierte
-    # öffentliche Basis-URL (lokale Entwicklung, oder Betreiber hat sie
-    # noch nicht gesetzt) lässt der Agent den Link einfach weg — der
-    # Operator sieht das im Freigabe-Entwurf und kann die Beauftragung
-    # trotzdem wie bisher per Mail-Text abwickeln.
-    if settings.oeffentliche_basis_url:
+    # der Agent sonst unzuverlässig parsen müsste. `HV_OEFFENTLICHE_BASIS_URL`
+    # geht vor (expliziter Betreiber-Override), sonst die vom aufrufenden
+    # Request abgeleitete Basis-URL (siehe Docstring oben) — nur wenn
+    # wirklich keine von beidem vorliegt (z. B. ein Test ohne Request-
+    # Kontext), lässt der Agent den Link weg und der Operator kann die
+    # Beauftragung wie bisher per Mail-Text abwickeln.
+    effektive_basis_url = settings.oeffentliche_basis_url or basis_url
+    if effektive_basis_url:
         entwurf.inhalt += (
             "\n\nBitte bestätigen Sie den Termin über unser Terminportal:\n"
-            f"{settings.oeffentliche_basis_url}/dienstleister-portal/{fall.dienstleister_zugriffstoken}"
+            f"{effektive_basis_url}/dienstleister-portal/{fall.dienstleister_zugriffstoken}"
         )
         session.add(entwurf)
         session.commit()

@@ -272,9 +272,9 @@ Siehe `backend/app/agent/`:
 
 Statt den vom Dienstleister vorgeschlagenen Termin aus einer Freitext-
 Mail-Antwort herausparsen zu müssen (fehleranfällig, nicht zuverlässig
-strukturiert), enthält die Beauftragungsmail — sofern `HV_OEFFENTLICHE_BASIS_URL`
-konfiguriert ist — einen Link zu einem eigenen, login-freien Portal
-(`/dienstleister-portal/{token}`, `backend/app/routers/dienstleister_portal.py`
+strukturiert), enthält die Beauftragungsmail einen Link zu einem eigenen,
+login-freien Portal (`/dienstleister-portal/{token}`,
+`backend/app/routers/dienstleister_portal.py`
 + `frontend/src/pages/DienstleisterPortal.tsx`). Dort bestätigt der
 Dienstleister den Termin über ein Formular (Fall wechselt
 `DIENSTLEISTER_BEAUFTRAGT` → `TERMIN_BESTAETIGT`) und meldet später die
@@ -282,6 +282,15 @@ Erledigung (`TERMIN_BESTAETIGT` → `ARBEIT_ERLEDIGT`). Eigenes
 Zugriffs-Token (`Fall.dienstleister_zugriffstoken`, 192 Bit Entropie),
 getrennt vom Kunden-`zugriffstoken` — beide Parteien sehen unterschiedliche
 Ausschnitte desselben Falls und dürfen unterschiedliche Aktionen auslösen.
+
+Die öffentliche Basis-URL für diesen Link braucht keine manuelle
+Konfiguration: `POST /api/postfach/eingang` (`backend/app/routers/postfach.py`)
+leitet sie aus dem eingehenden Request ab (`request.base_url`) — der
+Endpunkt wird immer vom eigenen Frontend auf genau der Domain aufgerufen,
+unter der die App gerade läuft, das funktioniert also lokal wie im Deploy
+gleichermaßen ohne Setup. `HV_OEFFENTLICHE_BASIS_URL` bleibt als expliziter
+Override nutzbar, falls die abgeleitete URL nicht passt (z. B. eine eigene
+Domain statt der Clever-Cloud-Vorschau-URL).
 
 ## Web-GUI — Kanban-Board statt getrennter Listen
 
@@ -359,13 +368,15 @@ kollidieren, wenn beides aus demselben Origin kommt.
    idempotent ist) oder gleich eigene Werte setzen.
    `HV_COOKIE_SECURE` setzt `docker-entrypoint.sh` im Deploy-Pfad bereits
    automatisch auf `true` (TLS-Terminierung durch Clever Cloud), das muss
-   normalerweise nicht manuell gesetzt werden. Ebenfalls empfohlen:
-   `HV_OEFFENTLICHE_BASIS_URL` (z. B. `https://hv.example.com`, ohne
-   abschließenden Slash) — ohne diese Variable lässt der Agent den Link
-   zum Dienstleister-Terminportal (`/dienstleister-portal/{token}`, login-
-   frei) in der Beauftragungsmail einfach weg; der Dienstleister müsste
-   den Termin dann wie bisher per Mail-Antwort zurückmelden, die niemand
-   automatisch auswertet.
+   normalerweise nicht manuell gesetzt werden. Der Link zum Dienstleister-
+   Terminportal (`/dienstleister-portal/{token}`, login-frei) in der
+   Beauftragungsmail braucht ebenfalls keine manuelle Konfiguration — die
+   Basis-URL wird automatisch aus dem eingehenden Request abgeleitet (siehe
+   [Dienstleister-Terminportal](#dienstleister-terminportal)). Nur falls
+   die abgeleitete URL nicht passen sollte (z. B. eine eigene Domain statt
+   der Clever-Cloud-Vorschau-URL), optional `HV_OEFFENTLICHE_BASIS_URL`
+   (z. B. `https://hv.example.com`, ohne abschließenden Slash) als
+   Override setzen.
 4. `PORT` wird von Clever Cloud automatisch injiziert, der Container
    bindet daran (`docker-entrypoint.sh`, Fallback `8080` für lokale Tests).
 5. Deploy auslösen — beim Containerstart laufen die Alembic-Migrationen

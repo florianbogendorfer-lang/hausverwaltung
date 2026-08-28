@@ -6,7 +6,7 @@ durch einen echten Mail-Adapter ersetzt werden kann, ohne den Agent-Kern
 anzufassen.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session
 
 from app.agent.loop import bearbeite_eingehende_mail
@@ -48,9 +48,20 @@ def get_dokumenten_index() -> DokumentenIndex:
 @router.post("/eingang", response_model=Fall, dependencies=[Depends(postfach_rate_limiter)])
 def mail_einspielen(
     mail: EingehendeMail,
+    request: Request,
     session: Session = Depends(get_session),
     router: ModelRouter = Depends(get_model_router),
     index: DokumentenIndex = Depends(get_dokumenten_index),
 ) -> Fall:
-    """Simuliert den Eingang einer Mieter-Mail und stößt die Fallbearbeitung an."""
-    return bearbeite_eingehende_mail(session, router, index, mail)
+    """Simuliert den Eingang einer Mieter-Mail und stößt die Fallbearbeitung an.
+
+    Die Basis-URL für den Dienstleister-Terminportal-Link (siehe
+    app/agent/loop.py) wird aus `request.base_url` abgeleitet — dieser
+    Endpunkt wird ausschließlich vom eigenen Frontend auf genau der Domain
+    aufgerufen, unter der die App gerade läuft (kein echter IMAP-Betrieb),
+    daher lässt sich die öffentliche Basis-URL ohne manuelle Konfiguration
+    zuverlässig bestimmen (docker-entrypoint.sh startet uvicorn mit
+    --proxy-headers, Clever Cloud liefert den echten Host/das echte Schema
+    dadurch korrekt durch, auch hinter dessen TLS-Terminierung)."""
+    basis_url = str(request.base_url).rstrip("/")
+    return bearbeite_eingehende_mail(session, router, index, mail, basis_url=basis_url)

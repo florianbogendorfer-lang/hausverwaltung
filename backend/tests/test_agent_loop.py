@@ -3,6 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from app.agent.model_router import LLMAntwort, ModelRouter
+from app.config import settings
 from app.main import app
 from app.models import FallStatus, NachrichtStatus
 from app.routers.postfach import get_model_router
@@ -81,6 +82,58 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
     assert freigabe["aktionstyp"] == "nachricht_senden"
     assert freigabe["ueberfaellig"] is False
     assert freigabe["begruendung"]
+
+
+def test_beauftragungsmail_enthaelt_terminportal_link_ohne_konfiguration():
+    """Die Basis-URL für den Terminportal-Link (siehe app/agent/loop.py)
+    braucht keine manuell gesetzte HV_OEFFENTLICHE_BASIS_URL mehr — sie
+    wird aus dem eingehenden Request abgeleitet (app/routers/postfach.py).
+    Der TestClient sendet Requests standardmäßig an "http://testserver",
+    der Link muss also genau darauf zeigen."""
+    response = client.post(
+        "/api/postfach/eingang",
+        json={
+            "von": "erika.musterfrau@example.test",
+            "betreff": "Türschloss defekt",
+            "inhalt": (
+                "Guten Tag, das Türschloss meiner Wohnung in der Musterstraße 5 "
+                "ist seit heute Morgen defekt und lässt sich nicht mehr "
+                "versperren. Bitte um rasche Hilfe. Erika Musterfrau"
+            ),
+        },
+    )
+    fall = response.json()
+
+    nachrichten = client.get(f"/api/faelle/{fall['id']}/nachrichten").json()
+    ausgehende = next(n for n in nachrichten if n["richtung"] == "ausgehend")
+    erwarteter_link = f"http://testserver/dienstleister-portal/{fall['dienstleister_zugriffstoken']}"
+    assert erwarteter_link in ausgehende["inhalt"]
+
+
+def test_explizite_basis_url_hat_vorrang_vor_request_abgeleiteter(monkeypatch):
+    """HV_OEFFENTLICHE_BASIS_URL bleibt als Override nutzbar (z. B. eine
+    eigene Domain statt der Clever-Cloud-Vorschau-URL) und muss die aus
+    dem Request abgeleitete Basis-URL überstimmen."""
+    monkeypatch.setattr(settings, "oeffentliche_basis_url", "https://hv.example.com")
+    response = client.post(
+        "/api/postfach/eingang",
+        json={
+            "von": "erika.musterfrau@example.test",
+            "betreff": "Türschloss defekt",
+            "inhalt": (
+                "Guten Tag, das Türschloss meiner Wohnung in der Musterstraße 5 "
+                "ist seit heute Morgen defekt und lässt sich nicht mehr "
+                "versperren. Bitte um rasche Hilfe. Erika Musterfrau"
+            ),
+        },
+    )
+    fall = response.json()
+
+    nachrichten = client.get(f"/api/faelle/{fall['id']}/nachrichten").json()
+    ausgehende = next(n for n in nachrichten if n["richtung"] == "ausgehend")
+    erwarteter_link = f"https://hv.example.com/dienstleister-portal/{fall['dienstleister_zugriffstoken']}"
+    assert erwarteter_link in ausgehende["inhalt"]
+    assert "testserver" not in ausgehende["inhalt"]
 
 
 def test_trace_zeigt_tatsaechlich_verwendetes_modell_beim_mailentwurf():
