@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlmodel import Session, select
 
 from app.auth import aktueller_benutzer
@@ -76,6 +76,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OWASP API Security Top 10 (API4:2023 — Unrestricted Resource Consumption):
+# ohne Obergrenze für die Request-Body-Größe könnte ein einzelner Request
+# beliebig viel Arbeitsspeicher/Bandbreite verbrauchen, bevor Pydantic die
+# einzelnen Feld-Obergrenzen (max_length, siehe Router) überhaupt zu sehen
+# bekommt — die greifen erst NACH dem vollständigen Einlesen/Parsen des
+# Bodies. 1 MB ist großzügig für die größte erwartete Nutzlast (Mailtext
+# max. 20.000 Zeichen, siehe app/agent/schemas.py) und lehnt früh per
+# Content-Length ab, ohne den Body überhaupt zu lesen.
+_MAX_BODY_BYTES = 1 * 1024 * 1024
+
+
+@app.middleware("http")
+async def body_groesse_begrenzen(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > _MAX_BODY_BYTES:
+                return JSONResponse(
+                    status_code=413, content={"detail": "Anfrage zu groß."}
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
+
 
 # OWASP Secure Headers Project: Basisschutz gegen MIME-Sniffing, Clickjacking
 # und übermäßiges Referrer-Leaking — kostet nichts, hat aber ohne diese
