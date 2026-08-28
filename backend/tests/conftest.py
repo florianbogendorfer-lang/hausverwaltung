@@ -13,7 +13,7 @@ from app.db import get_session
 from app.main import app
 from app.models import Benutzer, BenutzerRolle, Dokument
 from app.routers.auth import login_rate_limiter
-from app.routers.postfach import get_dokumenten_index
+from app.routers.postfach import get_dokumenten_index, postfach_rate_limiter
 from app.seed import seed
 from tests.fakes import fake_dokumenten_index
 
@@ -48,6 +48,12 @@ app.dependency_overrides[aktueller_benutzer] = lambda: _TEST_BENUTZER
 # reihenfolgeabhängig zuschlagen. tests/test_rate_limit.py entfernt das
 # Override gezielt, um die Bremse selbst zu prüfen.
 app.dependency_overrides[login_rate_limiter] = lambda: None
+
+# Gleicher Grund wie bei login_rate_limiter: viele Testdateien rufen
+# /api/postfach/eingang wiederholt über dieselbe TestClient-IP auf — ohne
+# Override würde die Bremse reihenfolgeabhängig zuschlagen, sobald die
+# Suite wächst.
+app.dependency_overrides[postfach_rate_limiter] = lambda: None
 
 # §16 Phase 5 / §0: In-Memory-Index + Fake-Embedding statt des echten
 # Chroma-Modells — hält die Testsuite netzwerkfrei.

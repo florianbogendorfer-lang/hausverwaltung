@@ -15,8 +15,17 @@ from app.agent.schemas import EingehendeMail
 from app.agent.vector_store import DokumentenIndex
 from app.db import get_session
 from app.models import Fall
+from app.rate_limit import ip_rate_limit
 
 router = APIRouter(prefix="/postfach", tags=["postfach"])
+
+# Jeder Aufruf löst einen echten LLM-API-Aufruf aus (Kosten!) — ohne Bremse
+# könnte ein Frontend-Bug (Retry-Schleife) oder eine kompromittierte Session
+# unbemerkt hohe Kosten verursachen. 30 Versuche/5 Minuten ist großzügig
+# genug für normale Bedienung (auch mehrere Test-Mails hintereinander),
+# bremst aber eine Endlosschleife spürbar. Analog zur Login-Bremse in
+# app/routers/auth.py.
+postfach_rate_limiter = ip_rate_limit(max_versuche=30, fenster_sekunden=300)
 
 
 def get_model_router() -> ModelRouter:
@@ -36,7 +45,7 @@ def get_dokumenten_index() -> DokumentenIndex:
     return _dokumenten_index
 
 
-@router.post("/eingang", response_model=Fall)
+@router.post("/eingang", response_model=Fall, dependencies=[Depends(postfach_rate_limiter)])
 def mail_einspielen(
     mail: EingehendeMail,
     session: Session = Depends(get_session),
