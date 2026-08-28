@@ -16,7 +16,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # missbraucht (siehe app/rate_limit.py). 20 Versuche/5 Minuten ist großzügig
 # genug für legitime Nutzer (auch hinter geteilten IPs/NAT), bremst aber
 # automatisiertes Durchprobieren spürbar.
-_LOGIN_RATE_LIMIT = Depends(ip_rate_limit(max_versuche=20, fenster_sekunden=300))
+#
+# Als benannte Funktion (nicht anonym in Depends(...)) definiert, damit
+# Tests sie gezielt per app.dependency_overrides ansprechen können — die
+# gemeinsame Test-Suite teilt sich eine IP ("testclient"), ein globales
+# Override hält die übrigen, funktionalen Tests unabhängig von der
+# Aufrufreihenfolge deterministisch (siehe conftest.py), während
+# tests/test_rate_limit.py das Override gezielt wieder entfernt.
+login_rate_limiter = ip_rate_limit(max_versuche=20, fenster_sekunden=300)
 
 
 class LoginEingabe(BaseModel):
@@ -35,7 +42,7 @@ def _antwort(benutzer: Benutzer) -> BenutzerAntwort:
     return BenutzerAntwort(id=benutzer.id, name=benutzer.name, email=benutzer.email, rolle=benutzer.rolle)
 
 
-@router.post("/login", response_model=BenutzerAntwort, dependencies=[_LOGIN_RATE_LIMIT])
+@router.post("/login", response_model=BenutzerAntwort, dependencies=[Depends(login_rate_limiter)])
 def login(
     eingabe: LoginEingabe, response: Response, session: Session = Depends(get_session)
 ) -> BenutzerAntwort:

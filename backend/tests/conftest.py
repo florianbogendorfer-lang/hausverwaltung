@@ -12,6 +12,7 @@ from app.auth import aktueller_benutzer
 from app.db import get_session
 from app.main import app
 from app.models import Benutzer, BenutzerRolle, Dokument
+from app.routers.auth import login_rate_limiter
 from app.routers.postfach import get_dokumenten_index
 from app.seed import seed
 from tests.fakes import fake_dokumenten_index
@@ -40,6 +41,13 @@ _TEST_BENUTZER = Benutzer(
     id=0, name="Test-Admin", email="test-admin@example.test", passwort_hash="", rolle=BenutzerRolle.admin
 )
 app.dependency_overrides[aktueller_benutzer] = lambda: _TEST_BENUTZER
+
+# Die gemeinsame Testsuite ruft /api/auth/login viele Male über denselben
+# TestClient auf (alle mit derselben "testclient"-IP) — ohne dieses
+# Override würde die IP-Rate-Bremse (app/rate_limit.py) irgendwann
+# reihenfolgeabhängig zuschlagen. tests/test_rate_limit.py entfernt das
+# Override gezielt, um die Bremse selbst zu prüfen.
+app.dependency_overrides[login_rate_limiter] = lambda: None
 
 # §16 Phase 5 / §0: In-Memory-Index + Fake-Embedding statt des echten
 # Chroma-Modells — hält die Testsuite netzwerkfrei.
