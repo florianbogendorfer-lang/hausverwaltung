@@ -162,6 +162,7 @@ export default function Postfach() {
               <input
                 value={von}
                 onChange={(e) => setVon(e.target.value)}
+                maxLength={320}
                 className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </label>
@@ -170,6 +171,7 @@ export default function Postfach() {
               <input
                 value={betreff}
                 onChange={(e) => setBetreff(e.target.value)}
+                maxLength={500}
                 className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </label>
@@ -179,6 +181,7 @@ export default function Postfach() {
                 value={inhalt}
                 onChange={(e) => setInhalt(e.target.value)}
                 rows={8}
+                maxLength={20_000}
                 className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </label>
