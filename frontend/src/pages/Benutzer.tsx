@@ -158,14 +158,16 @@ export default function BenutzerVerwaltung() {
               type="password"
               required
               minLength={15}
+              maxLength={72}
               autoComplete="new-password"
               value={passwort}
               onChange={(e) => setPasswort(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
             />
             <span className="mt-1 block text-xs text-slate-400">
-              Mindestens 15 Zeichen (OWASP-Empfehlung ohne Zwei-Faktor-Login) — lange
-              Passphrase statt Komplexitätsregeln.
+              15–72 Zeichen (OWASP-Empfehlung ohne Zwei-Faktor-Login) — lange Passphrase
+              statt Komplexitätsregeln. Bei Umlauten/Emojis ggf. weniger als 72 Zeichen
+              möglich (bcrypt-Grenze gilt pro Byte, nicht pro Zeichen).
             </span>
           </label>
           <label className="text-sm">
