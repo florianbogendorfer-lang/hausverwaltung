@@ -94,6 +94,8 @@ async def sicherheits_header_setzen(request: Request, call_next):
         "default-src 'self'; "
         "style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
+        "object-src 'none'; "
+        "form-action 'self'; "
         "frame-ancestors 'none'; base-uri 'self'"
     )
     # HSTS nur wenn wir wissen, dass wir hinter TLS laufen (cookie_secure
