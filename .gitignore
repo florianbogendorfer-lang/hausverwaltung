@@ -1,0 +1,14 @@
+# Root-Gitignore ergänzt die spezifischeren backend/.gitignore und
+# frontend/.gitignore um allgemeine, verzeichnisunabhängige Artefakte
+# (OS-/Editor-Dateien, versehentlich am Repo-Root abgelegte .env-Dateien),
+# die bisher an keiner Stelle abgedeckt waren.
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.env
+.env.*
+!.env.example
+!frontend/.env.development
