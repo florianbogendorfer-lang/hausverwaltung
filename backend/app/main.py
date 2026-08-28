@@ -19,7 +19,7 @@ Dockerfile + `FRONTEND_DIST`-Block unten).
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
@@ -75,6 +75,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OWASP Secure Headers Project: Basisschutz gegen MIME-Sniffing, Clickjacking
+# und übermäßiges Referrer-Leaking — kostet nichts, hat aber ohne diese
+# Middleware bisher komplett gefehlt. CSP erlaubt gezielt Google Fonts
+# (index.html lädt sie fest ein — style-src für das <link rel="stylesheet">,
+# font-src für die eigentlichen Font-Dateien von fonts.gstatic.com), sonst
+# nur same-origin: kein weiteres externes CDN im Einsatz.
+@app.middleware("http")
+async def sicherheits_header_setzen(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "style-src 'self' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "frame-ancestors 'none'; base-uri 'self'"
+    )
+    return response
+
 
 # Login/Logout und die öffentliche Kundenansicht bleiben unauthentifiziert
 # erreichbar — alle übrigen Routen verlangen eine gültige Session (§0-Wunsch:
