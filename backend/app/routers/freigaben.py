@@ -10,8 +10,9 @@ from sqlmodel import Session, select
 
 from app.agent.freigabe_service import FreigabeBereitsEntschieden, ablehnen, freigeben, ist_ueberfaellig
 from app.agent.mail_adapter import MailAdapter, get_mail_adapter
+from app.auth import aktueller_benutzer
 from app.db import get_session
-from app.models import Freigabe, FreigabeStatus
+from app.models import Benutzer, Freigabe, FreigabeStatus
 
 router = APIRouter(prefix="/freigaben", tags=["freigaben"])
 
@@ -55,12 +56,10 @@ class FreigabeAnsicht(BaseModel):
 
 
 class FreigebenRequest(BaseModel):
-    entscheider: str
     bearbeiteter_text: Optional[str] = None
 
 
 class AblehnenRequest(BaseModel):
-    entscheider: str
     grund: str
 
 
@@ -97,12 +96,15 @@ def freigabe_erteilen(
     body: FreigebenRequest,
     session: Session = Depends(get_session),
     mail_adapter: MailAdapter = Depends(get_mail_adapter),
+    benutzer: Benutzer = Depends(aktueller_benutzer),
 ) -> FreigabeAnsicht:
     """FR-HITL-5: Freigeben — optional mit bearbeitetem Text (dann
-    "bearbeitet_freigegeben")."""
+    "bearbeitet_freigegeben"). `entscheider` kommt aus der authentifizierten
+    Session, nicht mehr als Klartext-Feld vom Client — sonst könnte sich
+    jeder eingeloggte Nutzer im Audit-Trail als jemand anderes ausgeben."""
     freigabe = _get_freigabe_oder_404(session, freigabe_id)
     try:
-        freigabe = freigeben(session, freigabe, body.entscheider, body.bearbeiteter_text, mail_adapter)
+        freigabe = freigeben(session, freigabe, benutzer.email, body.bearbeiteter_text, mail_adapter)
     except FreigabeBereitsEntschieden as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return FreigabeAnsicht.aus(freigabe)
@@ -110,12 +112,16 @@ def freigabe_erteilen(
 
 @router.post("/{freigabe_id}/ablehnen", response_model=FreigabeAnsicht)
 def freigabe_ablehnen(
-    freigabe_id: int, body: AblehnenRequest, session: Session = Depends(get_session)
+    freigabe_id: int,
+    body: AblehnenRequest,
+    session: Session = Depends(get_session),
+    benutzer: Benutzer = Depends(aktueller_benutzer),
 ) -> FreigabeAnsicht:
-    """FR-HITL-5: Ablehnen — Grund fließt in den Fall zurück."""
+    """FR-HITL-5: Ablehnen — Grund fließt in den Fall zurück. `entscheider`
+    kommt wie bei freigeben() aus der Session (siehe dort)."""
     freigabe = _get_freigabe_oder_404(session, freigabe_id)
     try:
-        freigabe = ablehnen(session, freigabe, body.entscheider, body.grund)
+        freigabe = ablehnen(session, freigabe, benutzer.email, body.grund)
     except FreigabeBereitsEntschieden as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return FreigabeAnsicht.aus(freigabe)

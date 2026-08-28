@@ -10,8 +10,11 @@ import { alsUtcDatum } from "../zeit";
 // FR-HITL-5. Wird im Fall-Detail direkt im Kontext des Falls angezeigt
 // (nicht mehr als separate, entkoppelte Liste) — Reviewer sollen im
 // vollen Kontext entscheiden, nicht aus einer anonymen Queue heraus.
-
-const OPERATOR_KEY = "hv_entscheider";
+//
+// Wer entscheidet, ergibt sich aus der eingeloggten Session (Backend liest
+// das aus dem Auth-Cookie, siehe app/routers/freigaben.py) — kein
+// Freitextfeld mehr, das ein Nutzer beliebig auf einen anderen Namen
+// setzen könnte (Audit-Trail-Integrität).
 
 const AKTIONSTYP_ICON: Record<Freigabe["aktionstyp"], typeof Mail> = {
   nachricht_senden: Mail,
@@ -48,14 +51,6 @@ export function FreigabeKarte({
   const [ablehnGrund, setAblehnGrund] = useState("");
   const [läuft, setLäuft] = useState(false);
   const [aktionsFehler, setAktionsFehler] = useState<string | null>(null);
-  const [entscheider, setEntscheider] = useState(
-    () => localStorage.getItem(OPERATOR_KEY) ?? "operator@example.test",
-  );
-
-  function entscheiderAendern(wert: string) {
-    setEntscheider(wert);
-    localStorage.setItem(OPERATOR_KEY, wert);
-  }
 
   const nachrichtId =
     freigabe.aktionstyp === "nachricht_senden" && typeof freigabe.payload.nachricht_id === "number"
@@ -86,7 +81,6 @@ export function FreigabeKarte({
     setAktionsFehler(null);
     try {
       await api.post(`/freigaben/${freigabe.id}/freigeben`, {
-        entscheider,
         bearbeiteter_text: bearbeiteterText,
       });
       onEntschieden();
@@ -102,7 +96,7 @@ export function FreigabeKarte({
     setLäuft(true);
     setAktionsFehler(null);
     try {
-      await api.post(`/freigaben/${freigabe.id}/ablehnen`, { entscheider, grund: ablehnGrund });
+      await api.post(`/freigaben/${freigabe.id}/ablehnen`, { grund: ablehnGrund });
       onEntschieden();
     } catch (e) {
       setAktionsFehler(e instanceof ApiFehler ? e.message : "Ablehnung fehlgeschlagen.");
@@ -225,15 +219,6 @@ export function FreigabeKarte({
 
           {freigabe.status === "offen" && (
             <div className="flex flex-col gap-3 border-t border-slate-100 pt-3">
-              <label className="flex items-center gap-2 text-xs text-slate-500">
-                Als
-                <input
-                  value={entscheider}
-                  onChange={(e) => entscheiderAendern(e.target.value)}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                />
-                entscheiden
-              </label>
               <div className="flex flex-wrap items-center gap-2">
                 {bearbeitenModus ? (
                   <>
