@@ -12,7 +12,7 @@ from app.auth import aktueller_benutzer
 from app.db import get_session
 from app.main import app
 from app.models import Benutzer, BenutzerRolle, Dokument
-from app.routers.auth import login_rate_limiter
+from app.routers.auth import login_rate_limiter, passwort_aendern_rate_limiter
 from app.routers.postfach import get_dokumenten_index, postfach_rate_limiter
 from app.routers.ticket import ticket_rate_limiter
 from app.seed import seed
@@ -49,6 +49,10 @@ app.dependency_overrides[aktueller_benutzer] = lambda: _TEST_BENUTZER
 # reihenfolgeabhängig zuschlagen. tests/test_rate_limit.py entfernt das
 # Override gezielt, um die Bremse selbst zu prüfen.
 app.dependency_overrides[login_rate_limiter] = lambda: None
+
+# Gleicher Grund wie bei login_rate_limiter, für den neuen
+# Passwortänderungs-Endpunkt (tests/test_passwort_aendern.py).
+app.dependency_overrides[passwort_aendern_rate_limiter] = lambda: None
 
 # Gleicher Grund wie bei login_rate_limiter: viele Testdateien rufen
 # /api/postfach/eingang wiederholt über dieselbe TestClient-IP auf — ohne

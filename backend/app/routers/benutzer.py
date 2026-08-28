@@ -5,18 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
-from app.auth import admin_erforderlich, passwort_byte_laenge_pruefen, passwort_hashen
+from app.auth import (
+    PASSWORT_MIN_LAENGE,
+    admin_erforderlich,
+    passwort_byte_laenge_pruefen,
+    passwort_hashen,
+)
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle, Sitzung
 from app.validators import email_gueltig_pruefen
 
 router = APIRouter(prefix="/benutzer", tags=["benutzer"], dependencies=[Depends(admin_erforderlich)])
-
-# OWASP Authentication Cheat Sheet: ohne MFA mindestens 15 Zeichen statt
-# Komplexitätsregeln (Groß-/Kleinschreibung/Sonderzeichen erzwingen bringt
-# nachweislich wenig und verleitet zu vorhersehbaren Mustern). Serverseitig
-# durchgesetzt — eine reine Frontend-Validierung wäre trivial umgehbar.
-PASSWORT_MIN_LAENGE = 15
 
 
 class BenutzerEingabe(BaseModel):

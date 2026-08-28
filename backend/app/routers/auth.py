@@ -2,17 +2,20 @@
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
-from sqlmodel import Session
+from sqlmodel import Session, delete
 
 from app.auth import (
+    PASSWORT_MIN_LAENGE,
     aktueller_benutzer,
     login_pruefen,
     passwort_byte_laenge_pruefen,
+    passwort_hashen,
+    passwort_pruefen,
     sitzung_anlegen,
     sitzung_beenden,
 )
 from app.db import get_session
-from app.models import Benutzer, BenutzerRolle
+from app.models import Benutzer, BenutzerRolle, Sitzung
 from app.rate_limit import ip_rate_limit
 from app.validators import email_gueltig_pruefen
 
@@ -31,6 +34,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Aufrufreihenfolge deterministisch (siehe conftest.py), während
 # tests/test_rate_limit.py das Override gezielt wieder entfernt.
 login_rate_limiter = ip_rate_limit(max_versuche=20, fenster_sekunden=300)
+
+# Dieselbe Begründung wie login_rate_limiter: Passwortänderung verlangt zwar
+# eine gültige Session, aber das aktuelle Passwort wird per Klartext-
+# Vergleich geprüft — ohne Bremse könnte ein Angreifer mit gestohlenem
+# Session-Cookie das aktuelle Passwort per Brute-Force erraten.
+passwort_aendern_rate_limiter = ip_rate_limit(max_versuche=10, fenster_sekunden=300)
 
 
 class LoginEingabe(BaseModel):
@@ -86,3 +95,43 @@ def logout(
 @router.get("/me", response_model=BenutzerAntwort)
 def me(benutzer: Benutzer = Depends(aktueller_benutzer)) -> BenutzerAntwort:
     return _antwort(benutzer)
+
+
+class PasswortAendernEingabe(BaseModel):
+    aktuelles_passwort: str = Field(max_length=128)
+    neues_passwort: str = Field(min_length=PASSWORT_MIN_LAENGE, max_length=128)
+
+    _aktuelles_byte_laenge = field_validator("aktuelles_passwort")(passwort_byte_laenge_pruefen)
+    _neues_byte_laenge = field_validator("neues_passwort")(passwort_byte_laenge_pruefen)
+
+
+@router.post(
+    "/passwort",
+    status_code=204,
+    dependencies=[Depends(passwort_aendern_rate_limiter)],
+)
+def passwort_aendern(
+    eingabe: PasswortAendernEingabe,
+    benutzer: Benutzer = Depends(aktueller_benutzer),
+    session: Session = Depends(get_session),
+    hv_session: str | None = Cookie(default=None),
+) -> None:
+    # Aktuelles Passwort erneut prüfen (OWASP: eine bestehende Session
+    # allein darf keine Passwortänderung erlauben, z. B. bei einem kurz
+    # unbeaufsichtigten, eingeloggten Gerät).
+    if not passwort_pruefen(eingabe.aktuelles_passwort, benutzer.passwort_hash):
+        raise HTTPException(status_code=401, detail="Aktuelles Passwort falsch")
+
+    benutzer.passwort_hash = passwort_hashen(eingabe.neues_passwort)
+    session.add(benutzer)
+
+    # Alle anderen Sessions dieses Kontos beenden (OWASP Session Management:
+    # eine Passwortänderung soll jeden anderen, potenziell kompromittierten
+    # Zugriff sofort beenden) — nur die aktuelle Session bleibt bestehen,
+    # damit der Nutzer nicht sich selbst aussperrt.
+    bedingung = Sitzung.benutzer_id == benutzer.id
+    if hv_session is not None:
+        bedingung = bedingung & (Sitzung.token != hv_session)
+    session.exec(delete(Sitzung).where(bedingung))
+
+    session.commit()

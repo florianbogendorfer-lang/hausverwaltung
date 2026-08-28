@@ -1,8 +1,9 @@
-import { LayoutGrid, LogOut, Mail, Settings2, Users } from "lucide-react";
+import { KeyRound, LayoutGrid, LogOut, Mail, Settings2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./auth";
+import { PasswortAendernDialog } from "./components/PasswortAendernDialog";
 import type { Freigabe } from "./types";
 
 const NAV_ITEMS = [
@@ -31,6 +32,7 @@ export default function App() {
   const location = useLocation();
   const { benutzer, ladend, abmelden } = useAuth();
   const [offeneFreigaben, setOffeneFreigaben] = useState(0);
+  const [passwortDialogOffen, setPasswortDialogOffen] = useState(false);
 
   useEffect(() => {
     if (!benutzer) return;
@@ -95,6 +97,14 @@ export default function App() {
               <p className="text-xs text-slate-400">{benutzer.rolle === "admin" ? "Admin" : "User"}</p>
             </div>
             <button
+              onClick={() => setPasswortDialogOffen(true)}
+              title="Passwort ändern"
+              aria-label="Passwort ändern"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            >
+              <KeyRound size={16} />
+            </button>
+            <button
               onClick={() => abmelden()}
               title="Abmelden"
               aria-label="Abmelden"
@@ -108,6 +118,9 @@ export default function App() {
       <main className="mx-auto max-w-[1400px] px-6 py-8">
         <Outlet />
       </main>
+      {passwortDialogOffen && (
+        <PasswortAendernDialog onGeschlossen={() => setPasswortDialogOffen(false)} />
+      )}
     </div>
   );
 }

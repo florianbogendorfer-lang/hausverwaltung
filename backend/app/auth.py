@@ -33,6 +33,13 @@ SITZUNGSDAUER = timedelta(days=7)
 FEHLVERSUCHE_SCHWELLE = 5
 MAX_SPERRDAUER = timedelta(hours=1)
 
+# OWASP Authentication Cheat Sheet: ohne MFA mindestens 15 Zeichen statt
+# Komplexitätsregeln (Groß-/Kleinschreibung/Sonderzeichen erzwingen bringt
+# nachweislich wenig und verleitet zu vorhersehbaren Mustern). Zentral hier
+# definiert, damit Neuanlage (app/routers/benutzer.py) und Passwortänderung
+# (app/routers/auth.py) dieselbe Grenze durchsetzen.
+PASSWORT_MIN_LAENGE = 15
+
 # bcrypt hat ein Hardlimit von 72 Bytes (nicht Zeichen!) pro Passwort. Bis
 # Version 5.0 wurde darüber hinaus stillschweigend abgeschnitten, seit 5.0
 # wirft `bcrypt.hashpw`/`checkpw` stattdessen ein ValueError — ein
