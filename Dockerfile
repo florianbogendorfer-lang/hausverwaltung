@@ -43,4 +43,13 @@ USER appuser
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
+# Docker-/OWASP-Best-Practice: dem Orchestrator (Clever Cloud, aber auch
+# `docker run`/-compose lokal) erlauben zu erkennen, ob der Prozess läuft
+# UND tatsächlich Requests beantwortet (nicht nur, dass der Container
+# existiert) — ohne HEALTHCHECK bliebe ein hängender/deadlocked Uvicorn-
+# Prozess unbemerkt "healthy". Nutzt Python statt curl/wget, um keine
+# zusätzlichen Pakete ins schlanke Image zu ziehen.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8080') + '/health', timeout=2)" || exit 1
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
