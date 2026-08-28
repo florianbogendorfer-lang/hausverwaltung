@@ -192,6 +192,21 @@ Grundsatz „externe Welt wird simuliert" (§0). Der erste Lauf, der den
 einmalig das ~80-MB-ONNX-Embedding-Modell nach — im Docker-Image ist das
 bereits vorab gebacken (siehe `Dockerfile`).
 
+### Linting
+
+```bash
+cd backend && ruff check .          # Pyflakes + Pycodestyle-Kernregeln
+cd frontend && npx oxlint           # React-/TS-Lint
+cd frontend && npx tsc -b --noEmit  # TypeScript strict mode
+```
+
+`.github/workflows/ci.yml` führt Tests, Linter und den Produktions-Build
+bei jedem Push/PR automatisch aus (Backend- und Frontend-Job parallel,
+netzwerkfrei, keine Secrets nötig). `.github/dependabot.yml` öffnet
+wöchentlich Update-PRs für pip/npm/Docker/GitHub-Actions-Abhängigkeiten
+innerhalb der in `backend/pyproject.toml` gesetzten Versions-Obergrenzen
+— jeder davon läuft automatisch durch dieselbe CI.
+
 ## Datenmodell
 
 Siehe `backend/app/models/` — jede Datei entspricht einer Tabelle aus §7 des
