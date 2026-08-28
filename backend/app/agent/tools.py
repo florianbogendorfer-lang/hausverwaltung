@@ -82,11 +82,14 @@ def _adress_normalisiert(text: str) -> str:
 def objekt_suchen(session: Session, suchbegriff: str):
     """Objekt zu Adresse/Melder finden. Vergleicht normalisiert (§ vs. ss,
     Groß-/Kleinschreibung), da sowohl Mailtext als auch Stammdaten je nach
-    Quelle unterschiedliche Schreibweisen enthalten können."""
+    Quelle unterschiedliche Schreibweisen enthalten können. `order_by(id)`
+    macht die Reihenfolge bei mehreren Treffern deterministisch (der
+    Aufrufer, loop.py, verwendet bei mehreren Treffern den ersten) — siehe
+    ausführliche Begründung bei dienstleister_suchen."""
     from app.models import Objekt
 
     ziel = _adress_normalisiert(suchbegriff)
-    alle = session.exec(select(Objekt)).all()
+    alle = session.exec(select(Objekt).order_by(Objekt.id)).all()
     return [
         objekt
         for objekt in alle
@@ -113,19 +116,28 @@ def kontakt_suchen(session: Session, suchbegriff: str) -> Optional[Kontakt]:
     escaped = suchbegriff.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     muster = f"%{escaped}%"
     return session.exec(
-        select(Kontakt).where(
-            (Kontakt.name.ilike(muster, escape="\\")) | (Kontakt.email.ilike(muster, escape="\\"))
-        )
+        select(Kontakt)
+        .where((Kontakt.name.ilike(muster, escape="\\")) | (Kontakt.email.ilike(muster, escape="\\")))
+        # Deterministische Reihenfolge bei mehreren Treffern — siehe
+        # ausführliche Begründung bei dienstleister_suchen.
+        .order_by(Kontakt.id)
     ).first()
 
 
 def dienstleister_suchen(session: Session, gewerk: Gewerk) -> list[Dienstleister]:
-    """Passenden Dienstleister nach Gewerk finden (nur aktive)."""
+    """Passenden Dienstleister nach Gewerk finden (nur aktive). Der Aufrufer
+    (loop.py) verwendet bei mehreren Treffern den ersten — ohne ORDER BY
+    garantiert SQL keine bestimmte Zeilenreihenfolge; SQLite liefert dabei
+    in der Praxis meist Einfüge-/rowid-Reihenfolge (Tests wären also
+    trügerisch grün gewesen), Postgres (Prod-DB) kann ohne ORDER BY jede
+    Reihenfolge liefern. Explizites `order_by(id)` macht "erster Treffer"
+    zu einem tatsächlichen, dialektübergreifend stabilen Vertrag statt
+    eines Zufallsprodukts der Query-Planung."""
     return list(
         session.exec(
-            select(Dienstleister).where(
-                Dienstleister.gewerk == gewerk, Dienstleister.aktiv.is_(True)
-            )
+            select(Dienstleister)
+            .where(Dienstleister.gewerk == gewerk, Dienstleister.aktiv.is_(True))
+            .order_by(Dienstleister.id)
         ).all()
     )
 
