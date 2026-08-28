@@ -20,7 +20,7 @@ class Trace(SQLModel, table=True):
     __tablename__ = "traces"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    fall_id: int = Field(foreign_key="faelle.id")
+    fall_id: int = Field(foreign_key="faelle.id", index=True)
     schritt_nr: int
     phase: TracePhase
     modell: Optional[str] = None

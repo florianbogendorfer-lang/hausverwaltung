@@ -22,7 +22,7 @@ class Aktion(SQLModel, table=True):
     __tablename__ = "aktionen"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    fall_id: int = Field(foreign_key="faelle.id")
+    fall_id: int = Field(foreign_key="faelle.id", index=True)
     zeitstempel: datetime = Field(default_factory=datetime.utcnow)
     akteur: Akteur
     aktionsart: str

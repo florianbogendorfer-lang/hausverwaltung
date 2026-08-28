@@ -29,7 +29,7 @@ class Freigabe(SQLModel, table=True):
     __tablename__ = "freigaben"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    fall_id: int = Field(foreign_key="faelle.id")
+    fall_id: int = Field(foreign_key="faelle.id", index=True)
     aktionstyp: Aktionstyp
     payload: dict = Field(sa_column=Column(JSON))
     begruendung: str

@@ -33,7 +33,7 @@ class Nachricht(SQLModel, table=True):
     __tablename__ = "nachrichten"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    fall_id: int = Field(foreign_key="faelle.id")
+    fall_id: int = Field(foreign_key="faelle.id", index=True)
     richtung: NachrichtRichtung
     kanal: Kanal = Kanal.email
     von: str
