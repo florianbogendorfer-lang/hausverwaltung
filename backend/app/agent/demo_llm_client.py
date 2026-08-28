@@ -72,6 +72,16 @@ class DemoLLMClient:
         return json.dumps(daten)
 
     def _entwerfen(self, prompt: str) -> str:
+        # Bewusst KEIN "(Hinweis: ... Demo-Client ...)"-Zusatz mehr im
+        # eigentlichen Mailtext (früherer Stand) — dieser Entwurf wird
+        # unverändert im Freigabe-Review (FreigabeKarte.tsx) und im
+        # Nachrichtenverlauf angezeigt und bei Freigabe genau so simuliert
+        # "versendet"; ein Debug-Hinweis mitten in einer echt aussehenden
+        # Geschäftsmail ist für den Bearbeiter irreführend/unprofessionell.
+        # Dass es sich um den Demo-Client handelt, steht bereits an der
+        # richtigen Stelle: im `modell`-Feld der LLMAntwort (z. B.
+        # "claude-sonnet-5 (demo, kein API-Key konfiguriert)"), sichtbar im
+        # Aktions-/Trace-Verlauf des Falls.
         kontext = prompt.split("Kontext:", 1)[-1].strip()[:400]
         return (
             "Sehr geehrte Damen und Herren,\n\n"
@@ -79,6 +89,5 @@ class DemoLLMClient:
             "Anliegen zeitnah einen Termin zu vereinbaren.\n\n"
             f"{kontext}\n\n"
             "Bitte stimmen Sie den Termin direkt mit dem Mieter bzw. der Mieterin ab.\n\n"
-            "Freundliche Grüße\nIhre Hausverwaltung\n\n"
-            "(Hinweis: Dieser Text stammt vom regelbasierten Demo-Client, nicht von einem LLM.)"
+            "Freundliche Grüße\nIhre Hausverwaltung"
         )

@@ -11,7 +11,7 @@ Loops in `app.agent.freigabe_service`, ausgelöst durch den Operator.
 """
 
 from app.agent import tools
-from app.agent.model_router import ModellStufe, ModelRouter, SchemaValidierungFehlgeschlagen
+from app.agent.model_router import ModelRouter, SchemaValidierungFehlgeschlagen
 from app.agent.schemas import EingehendeMail, Einordnung
 from app.agent.trace_logger import TraceLogger
 from app.agent.vector_store import DokumentenIndex
@@ -208,7 +208,7 @@ def _anreichern_und_entwerfen(
         f"Herangezogene Dokumente: {quellen}"
     )
     trace.log(TracePhase.tool_call, "nachricht_entwerfen(zweck='Dienstleister beauftragen', ...)")
-    entwurf = tools.nachricht_entwerfen(
+    entwurf, entwurf_modell = tools.nachricht_entwerfen(
         router,
         session,
         fall.id,
@@ -237,7 +237,7 @@ def _anreichern_und_entwerfen(
     trace.log(
         TracePhase.tool_result,
         f"Entwurf erstellt (Nachricht #{entwurf.id}, Status={entwurf.status.value}).",
-        modell=router.modell_fuer(ModellStufe.stark),
+        modell=entwurf_modell,
     )
 
     # --- Schritt: Freigabe anfordern (FR-HITL-1, FR-HITL-2) ---

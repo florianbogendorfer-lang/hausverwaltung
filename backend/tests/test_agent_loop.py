@@ -1,6 +1,8 @@
+import json
+
 from fastapi.testclient import TestClient
 
-from app.agent.model_router import ModelRouter
+from app.agent.model_router import LLMAntwort, ModelRouter
 from app.main import app
 from app.models import FallStatus, NachrichtStatus
 from app.routers.postfach import get_model_router
@@ -79,6 +81,55 @@ def test_tuerschloss_mail_erzeugt_fall_mit_korrekter_einordnung():
     assert freigabe["aktionstyp"] == "nachricht_senden"
     assert freigabe["ueberfaellig"] is False
     assert freigabe["begruendung"]
+
+
+def test_trace_zeigt_tatsaechlich_verwendetes_modell_beim_mailentwurf():
+    """Regression: der Trace-Schritt "Entwurf erstellt" zeigte früher immer
+    die KONFIGURIERTE Modell-ID (router.modell_fuer(...)) statt des von
+    LLMClient.complete tatsächlich zurückgegebenen `LLMAntwort.modell` —
+    lief kein API-Key konfiguriert und damit der DemoLLMClient, verschwand
+    dessen "(demo, kein API-Key konfiguriert)"-Hinweis aus genau diesem
+    einen Trace-Schritt (obwohl er beim Einordnungs-Schritt korrekt
+    erscheint), was den Eindruck erweckte, es sei ein echter LLM-Aufruf
+    gewesen. Ein Fake-Client, der ein vom angefragten Modell abweichendes
+    `modell` zurückgibt, deckt das zuverlässig auf."""
+
+    class _AbweichendesModellClient:
+        modell_guenstig = "fake-guenstig"
+        modell_stark = "fake-stark"
+
+        def complete(self, modell: str, system: str, prompt: str, temperature: float) -> LLMAntwort:
+            if "Zweck der Mail" in prompt:
+                text = "Sehr geehrte Damen und Herren,\n\nBitte Termin vereinbaren.\n\nGrüße"
+                return LLMAntwort(text=text, modell=f"{modell} (abweichend)", dauer_ms=5)
+            daten = {
+                "typ": "reparaturmeldung",
+                "gewerk": "schlosser",
+                "objekt_suchbegriff": "Musterstraße 5",
+                "melder_suchbegriff": "Erika Musterfrau",
+                "konfidenz": 0.92,
+                "begruendung": "Türschloss defekt.",
+            }
+            return LLMAntwort(text=json.dumps(daten), modell=modell, dauer_ms=5)
+
+    app.dependency_overrides[get_model_router] = lambda: ModelRouter(client=_AbweichendesModellClient())
+    try:
+        response = client.post(
+            "/api/postfach/eingang",
+            json={
+                "von": "erika.musterfrau@example.test",
+                "betreff": "Türschloss defekt",
+                "inhalt": "Das Türschloss in der Musterstraße 5 ist defekt.",
+            },
+        )
+        assert response.status_code == 200
+        fall_id = response.json()["id"]
+
+        trace = client.get(f"/api/faelle/{fall_id}/trace").json()
+        entwurf_schritt = next(t for t in trace if "Entwurf erstellt" in t["inhalt"])
+        assert entwurf_schritt["modell"] == "fake-stark (abweichend)"
+    finally:
+        app.dependency_overrides[get_model_router] = _get_model_router_override
 
 
 def test_unklares_anliegen_wird_eskaliert():

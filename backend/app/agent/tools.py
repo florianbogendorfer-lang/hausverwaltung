@@ -231,8 +231,13 @@ def nachricht_entwerfen(
     betreff: str,
     zweck: str,
     kontext: str,
-) -> Nachricht:
-    """Mailentwurf erzeugen (nur Entwurf, keine Freigabe nötig)."""
+) -> tuple[Nachricht, str]:
+    """Mailentwurf erzeugen (nur Entwurf, keine Freigabe nötig). Gibt das
+    tatsächlich verwendete Modell zurück (wie fall_einordnen) — der Aufrufer
+    (app/agent/loop.py) protokolliert es im Trace, damit dort sichtbar
+    bleibt, ob wirklich ein LLM geantwortet hat oder (mangels API-Key) der
+    regelbasierte DemoLLMClient, statt fälschlich immer die konfigurierte
+    Modell-ID ohne diesen Hinweis anzuzeigen."""
     prompt = f"Zweck der Mail: {zweck}\n\nKontext:\n{kontext}"
     antwort = router.complete_text(ModellStufe.stark, NACHRICHT_ENTWERFEN_SYSTEM_PROMPT, prompt)
     nachricht = Nachricht(
@@ -254,7 +259,7 @@ def nachricht_entwerfen(
         "nachricht:entwurf_erstellt",
         {"nachricht_id": nachricht.id, "an": an, "modell": antwort.modell},
     )
-    return nachricht
+    return nachricht, antwort.modell
 
 
 def _freigabe_anlegen_oder_vorhandene(
