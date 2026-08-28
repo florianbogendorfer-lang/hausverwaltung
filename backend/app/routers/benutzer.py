@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.auth import admin_erforderlich, passwort_byte_laenge_pruefen, passwort_hashen
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle, Sitzung
+from app.validators import email_gueltig_pruefen
 
 router = APIRouter(prefix="/benutzer", tags=["benutzer"], dependencies=[Depends(admin_erforderlich)])
 
@@ -25,6 +26,7 @@ class BenutzerEingabe(BaseModel):
     rolle: BenutzerRolle = BenutzerRolle.user
 
     _passwort_byte_laenge = field_validator("passwort")(passwort_byte_laenge_pruefen)
+    _email_gueltig = field_validator("email")(email_gueltig_pruefen)
 
 
 class BenutzerAusgabe(BaseModel):

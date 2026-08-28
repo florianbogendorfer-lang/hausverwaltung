@@ -1,11 +1,12 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
 from app.db import get_session
 from app.models import Fall, Kontakt, KontaktRolle, Objekt
+from app.validators import email_gueltig_pruefen
 
 router = APIRouter(prefix="/kontakte", tags=["kontakte"])
 
@@ -17,6 +18,8 @@ class KontaktEingabe(BaseModel):
     email: str = Field(max_length=320)
     telefon: Optional[str] = Field(default=None, max_length=50)
     objekt_id: Optional[int] = None
+
+    _email_gueltig = field_validator("email")(email_gueltig_pruefen)
 
 
 @router.get("", response_model=list[Kontakt])

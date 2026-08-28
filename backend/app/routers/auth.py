@@ -14,6 +14,7 @@ from app.auth import (
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle
 from app.rate_limit import ip_rate_limit
+from app.validators import email_gueltig_pruefen
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -43,6 +44,7 @@ class LoginEingabe(BaseModel):
     passwort: str = Field(max_length=128)
 
     _passwort_byte_laenge = field_validator("passwort")(passwort_byte_laenge_pruefen)
+    _email_gueltig = field_validator("email")(email_gueltig_pruefen)
 
 
 class BenutzerAntwort(BaseModel):

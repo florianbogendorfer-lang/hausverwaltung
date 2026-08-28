@@ -152,6 +152,22 @@ def test_benutzer_anlegen_lehnt_kurzes_passwort_ab(echter_login_client: TestClie
     assert response.status_code == 422
 
 
+def test_benutzer_anlegen_lehnt_ungueltige_email_ab(echter_login_client: TestClient):
+    echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
+    )
+    response = echter_login_client.post(
+        "/api/benutzer",
+        json={
+            "name": "Ungültige E-Mail",
+            "email": "nicht-valide",
+            "passwort": "x" * 20,
+            "rolle": "user",
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_benutzer_anlegen_lehnt_passwort_ueber_72_bytes_ab(echter_login_client: TestClient):
     """bcrypt>=5.0 wirft für Passwörter >72 Bytes ein ValueError statt (wie
     <5.0) stillschweigend abzuschneiden — ohne die Byte-Prüfung in

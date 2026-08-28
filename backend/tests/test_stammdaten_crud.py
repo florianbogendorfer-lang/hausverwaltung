@@ -41,3 +41,22 @@ def test_kontakt_anlegen_und_loeschen():
     assert erstellt.status_code == 201
     kontakt_id = erstellt.json()["id"]
     assert client.delete(f"/api/kontakte/{kontakt_id}").status_code == 204
+
+
+def test_kontakt_anlegen_mit_ungueltiger_email_schlaegt_fehl():
+    # OWASP Input Validation Cheat Sheet: Format prüfen, nicht nur Länge
+    # (app.validators.email_gueltig_pruefen) — sonst landen Adressen wie
+    # "nicht-valide" ungeprüft in der DB und später als SMTP-Empfänger.
+    response = client.post(
+        "/api/kontakte",
+        json={"name": "Test Person", "rolle": "mieter", "email": "nicht-valide"},
+    )
+    assert response.status_code == 422
+
+
+def test_dienstleister_anlegen_mit_ungueltiger_email_schlaegt_fehl():
+    response = client.post(
+        "/api/dienstleister",
+        json={"name": "X", "gewerk": "schlosser", "email": "nicht-valide"},
+    )
+    assert response.status_code == 422
