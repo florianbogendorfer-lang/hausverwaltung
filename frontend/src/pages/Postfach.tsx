@@ -54,12 +54,17 @@ const TEST_MAILS: TestMail[] = [
   },
 ];
 
+// TEST_MAILS ist ein Literal mit fest bekannten Einträgen — der erste
+// existiert garantiert, `noUncheckedIndexedAccess` kann das bei einem
+// Index-Zugriff aber nicht wissen (siehe tsconfig.app.json).
+const [ERSTE_TEST_MAIL] = TEST_MAILS as [TestMail, ...TestMail[]];
+
 export default function Postfach() {
   const navigate = useNavigate();
-  const [von, setVon] = useState(TEST_MAILS[0].von);
-  const [betreff, setBetreff] = useState(TEST_MAILS[0].betreff);
-  const [inhalt, setInhalt] = useState(TEST_MAILS[0].inhalt);
-  const [ausgewaehlt, setAusgewaehlt] = useState(TEST_MAILS[0].label);
+  const [von, setVon] = useState(ERSTE_TEST_MAIL.von);
+  const [betreff, setBetreff] = useState(ERSTE_TEST_MAIL.betreff);
+  const [inhalt, setInhalt] = useState(ERSTE_TEST_MAIL.inhalt);
+  const [ausgewaehlt, setAusgewaehlt] = useState(ERSTE_TEST_MAIL.label);
   const [sendetGerade, setSendetGerade] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const abbruchRef = useRef<AbortController | null>(null);
