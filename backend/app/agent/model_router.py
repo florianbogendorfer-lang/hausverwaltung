@@ -18,6 +18,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from app import config
 from app.config import settings
 
 T = TypeVar("T", bound=BaseModel)
@@ -134,6 +135,51 @@ class MistralLLMClient:
         return LLMAntwort(text=text, modell=modell, dauer_ms=dauer_ms)
 
 
+class NvidiaLLMClient:
+    """Ruft NVIDIA NIM auf (integrate.api.nvidia.com, OpenAI-kompatible
+    Chat-Completions-API) — probeweiser Ersatz für Mistral (Nemotron statt
+    Mistral-Modelle), umschaltbar über `app.config.NVIDIA_STATT_MISTRAL`.
+    Kein Streaming (`stream=False` per Default): der Rest des Agent-Kerns
+    erwartet über das `LLMClient`-Protokoll eine fertige `LLMAntwort`, kein
+    Chunk-für-Chunk-Reasoning wie im NVIDIA-Beispielcode — Streaming würde
+    hier nur Komplexität ohne Nutzen hinzufügen."""
+
+    def __init__(self) -> None:
+        self.modell_guenstig = settings.nvidia_modell_guenstig
+        self.modell_stark = settings.nvidia_modell_stark
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from openai import OpenAI
+
+            # Kurzes, explizites Timeout — siehe Begründung bei
+            # AnthropicLLMClient._get_client.
+            self._client = OpenAI(
+                base_url="https://integrate.api.nvidia.com/v1",
+                api_key=settings.nvidia_api_key,
+                timeout=25.0,
+            )
+        return self._client
+
+    def complete(
+        self, modell: str, system: str, prompt: str, temperature: float = 0.0
+    ) -> LLMAntwort:
+        client = self._get_client()
+        start = time.monotonic()
+        response = client.chat.completions.create(
+            model=modell,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        dauer_ms = int((time.monotonic() - start) * 1000)
+        text = response.choices[0].message.content
+        return LLMAntwort(text=text, modell=modell, dauer_ms=dauer_ms)
+
+
 class SchemaValidierungFehlgeschlagen(Exception):
     """Strukturierte Ausgabe hat auch nach erneutem Versuch das Schema
     verletzt (FR-AGENT-3) — der Aufrufer soll daraufhin eskalieren."""
@@ -155,6 +201,13 @@ def _extrahiere_json(text: str) -> str:
 def _default_client() -> LLMClient:
     provider = (settings.llm_provider or "").strip().lower()
     if provider == "mistral":
+        # Manueller Umschalter (app/config.py::NVIDIA_STATT_MISTRAL) — siehe
+        # dort für die Begründung, warum das eine Code-Konstante statt einer
+        # Env-Var ist. Die bestehende Mistral-Anbindung bleibt unverändert
+        # bestehen, diese eine Stelle entscheidet nur, welcher Client
+        # tatsächlich hinter der Provider-Wahl "mistral" steckt.
+        if config.NVIDIA_STATT_MISTRAL:
+            return NvidiaLLMClient()
         return MistralLLMClient()
     if provider == "anthropic":
         return AnthropicLLMClient()

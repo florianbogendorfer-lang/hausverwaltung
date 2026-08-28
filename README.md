@@ -53,6 +53,18 @@ dem passenden `HV_ANTHROPIC_API_KEY`/`HV_MISTRAL_API_KEY`. Ohne
 `HV_LLM_PROVIDER` gilt zur Abwärtskompatibilität: Anthropic-Key gesetzt
 → Anthropic, sonst Demo.
 
+Probeweise steht zusätzlich NVIDIA NIM (Nemotron, OpenAI-kompatible API)
+als Alternative zu Mistral bereit (`NvidiaLLMClient`) — **aber bewusst
+nicht per Konfiguration wählbar.** Der Umschalter dazu ist die
+Code-Konstante `NVIDIA_STATT_MISTRAL` in `backend/app/config.py`
+(Standard `False`): erst auf `True` setzen, dann `HV_LLM_PROVIDER=mistral`
+läuft tatsächlich über NVIDIA statt Mistral. Grund für den Code- statt
+Env-Umschalter: es gibt (Stand jetzt) kein zugesagtes NVIDIA-
+Produktionskontingent, nur einen persönlichen Zugang — ein Versehen in
+der Deploy-Konfiguration soll den Provider daher nicht unbemerkt
+umschalten können. Key über `HV_NVIDIA_API_KEY`, die bestehende
+Mistral-Anbindung bleibt dabei vollständig erhalten.
+
 **Phase 5 — RAG-Vektorsuche:** `dokumente_durchsuchen` nutzt jetzt einen
 echten, von der DB getrennten Vektorspeicher (§6/§12) statt der früheren
 Stichwortzählung: [Chroma](https://www.trychroma.com/) mit eingebauter

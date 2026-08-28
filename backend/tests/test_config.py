@@ -9,6 +9,9 @@ HV_COOKIE_SECURE aktiv ist (Produktions-Deploy) und kein eigenes Passwort
 gesetzt wurde — sicherer als das bekannte Demo-Passwort, ohne die
 Deploy-Pipeline zu blockieren."""
 
+import pytest
+
+from app import config as config_modul
 from app.config import Settings
 
 
@@ -42,3 +45,23 @@ def test_cookie_secure_false_erlaubt_demo_passwoerter():
     settings = Settings(cookie_secure=False)
     assert settings.seed_admin_passwort == "admin123"
     assert settings.seed_user_passwort == "user1234"
+
+
+def test_llm_provider_mistral_ohne_key_schlaegt_fehl():
+    with pytest.raises(ValueError, match="HV_MISTRAL_API_KEY fehlt"):
+        Settings(llm_provider="mistral", mistral_api_key=None)
+
+
+def test_llm_provider_mistral_mit_key_ist_gueltig():
+    Settings(llm_provider="mistral", mistral_api_key="irgendein-key")
+
+
+def test_llm_provider_mistral_mit_aktiviertem_nvidia_umschalter_verlangt_nvidia_key(monkeypatch):
+    # NVIDIA_STATT_MISTRAL ist eine reine Code-Konstante (siehe
+    # app/config.py) — hier per monkeypatch aktiviert, um zu prüfen, dass
+    # der Fail-Fast-Check dann den richtigen Key verlangt (nicht mehr
+    # HV_MISTRAL_API_KEY, das bei aktiviertem Umschalter unbenutzt bliebe).
+    monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", True)
+    with pytest.raises(ValueError, match="HV_NVIDIA_API_KEY fehlt"):
+        Settings(llm_provider="mistral", mistral_api_key=None, nvidia_api_key=None)
+    Settings(llm_provider="mistral", mistral_api_key=None, nvidia_api_key="irgendein-key")

@@ -1,12 +1,20 @@
-"""Provider-Wahl (`HV_LLM_PROVIDER`) + der austauschbare `MistralLLMClient`
-(§12/NFR-5: austauschbarer LLM-Anbieter, rein per Konfiguration)."""
+"""Provider-Wahl (`HV_LLM_PROVIDER`) + die austauschbaren `MistralLLMClient`/
+`NvidiaLLMClient` (§12/NFR-5: austauschbarer LLM-Anbieter, rein per
+Konfiguration bzw. — für NVIDIA — per Code-Umschalter, siehe
+app/config.py::NVIDIA_STATT_MISTRAL)."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
+from app import config
 from app.agent.demo_llm_client import DemoLLMClient
-from app.agent.model_router import AnthropicLLMClient, MistralLLMClient, _default_client
+from app.agent.model_router import (
+    AnthropicLLMClient,
+    MistralLLMClient,
+    NvidiaLLMClient,
+    _default_client,
+)
 from app.config import settings
 
 
@@ -48,6 +56,16 @@ def test_ohne_provider_wahl_und_ohne_key_verwendet_demo():
     assert isinstance(_default_client(), DemoLLMClient)
 
 
+def test_explizite_wahl_mistral_mit_aktiviertem_nvidia_umschalter(monkeypatch):
+    # Der Umschalter (app/config.py::NVIDIA_STATT_MISTRAL) ist bewusst eine
+    # Code-Konstante, keine Env-Var/Settings-Feld (siehe Begründung dort) —
+    # hier per monkeypatch aktiviert, um das Umschalt-Verhalten selbst zu
+    # testen, ohne die bestehende Mistral-Anbindung anzufassen.
+    monkeypatch.setattr(config, "NVIDIA_STATT_MISTRAL", True)
+    settings.llm_provider = "mistral"
+    assert isinstance(_default_client(), NvidiaLLMClient)
+
+
 def test_mistral_client_sendet_system_und_user_nachricht():
     client = MistralLLMClient()
     fake_antwort = MagicMock()
@@ -67,4 +85,25 @@ def test_mistral_client_sendet_system_und_user_nachricht():
             {"role": "user", "content": "User"},
         ],
         timeout_ms=25_000,
+    )
+
+
+def test_nvidia_client_sendet_system_und_user_nachricht():
+    client = NvidiaLLMClient()
+    fake_antwort = MagicMock()
+    fake_antwort.choices = [MagicMock(message=MagicMock(content='{"ok": true}'))]
+    client._client = MagicMock()
+    client._client.chat.completions.create.return_value = fake_antwort
+
+    antwort = client.complete("nvidia/nemotron-3-super-120b-a12b", "System", "User", temperature=0.0)
+
+    assert antwort.text == '{"ok": true}'
+    assert antwort.modell == "nvidia/nemotron-3-super-120b-a12b"
+    client._client.chat.completions.create.assert_called_once_with(
+        model="nvidia/nemotron-3-super-120b-a12b",
+        temperature=0.0,
+        messages=[
+            {"role": "system", "content": "System"},
+            {"role": "user", "content": "User"},
+        ],
     )

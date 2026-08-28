@@ -10,6 +10,21 @@ import secrets
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Manueller Umschalter: NVIDIA NIM (Nemotron) statt Mistral verwenden,
+# wenn HV_LLM_PROVIDER=mistral gesetzt ist (app/agent/model_router.py
+# liest diese Konstante). Bewusst eine einfache Python-Konstante hier im
+# Code, KEIN Settings-Feld/keine Env-Var — der Betreiber hat aktuell
+# Zugriff auf ein einzelnes, persönliches NVIDIA-Kontingent, kein
+# zugesagtes Produktions-Kontingent; ein Versehen in der
+# Deploy-Konfiguration (falsch gesetzte Env-Var) soll den Provider daher
+# nicht unbemerkt umschalten können. Die bestehende Mistral-Anbindung
+# (MistralLLMClient) bleibt vollständig erhalten, diese Konstante
+# entscheidet nur, welcher Client hinter der Wahl "mistral" tatsächlich
+# steckt. Hier statt in model_router.py definiert, damit der Fail-Fast-
+# Check unten (_provider_und_key_zusammen_pruefen) den richtigen Key
+# verlangt, je nachdem wie die Konstante steht.
+NVIDIA_STATT_MISTRAL = False
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HV_")
@@ -18,6 +33,13 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str | None = None
     mistral_api_key: str | None = None
+    # NVIDIA NIM (OpenAI-kompatible API, integrate.api.nvidia.com) — probeweise
+    # Alternative zu Mistral. Bewusst NICHT über llm_provider wählbar: der
+    # Umschalter dazu ist die Code-Konstante NVIDIA_STATT_MISTRAL oben in
+    # dieser Datei, keine Konfigurationsoption — siehe dort für die
+    # Begründung. Der Key bleibt trotzdem regulär über die Umgebung gesetzt
+    # (gleiches Muster wie die anderen *_api_key-Felder).
+    nvidia_api_key: str | None = None
 
     # Explizite Provider-Wahl: "anthropic" | "mistral" | "demo". Ohne
     # Angabe gilt das bisherige Verhalten (Altkompatibilität): Anthropic-
@@ -32,6 +54,11 @@ class Settings(BaseSettings):
     modell_stark: str = "claude-sonnet-5"
     mistral_modell_guenstig: str = "mistral-small-latest"
     mistral_modell_stark: str = "mistral-large-latest"
+    # NVIDIA bietet für dieses Modell (Stand jetzt) keine separate
+    # günstige/starke Variante — beide Stufen laufen probeweise auf
+    # demselben Modell, bis es eine kleinere Nemotron-Variante gibt.
+    nvidia_modell_guenstig: str = "nvidia/nemotron-3-super-120b-a12b"
+    nvidia_modell_stark: str = "nvidia/nemotron-3-super-120b-a12b"
 
     # FR-HITL-6 / FR-AGENT-4 — unterhalb dieser Konfidenz wird eskaliert
     # statt geraten.
@@ -92,10 +119,16 @@ class Settings(BaseSettings):
         # ersten LLM-Aufruf mitten im (asynchron nicht wiederholten)
         # Agent-Loop — HV_LLM_PROVIDER ist eine explizite Betreiber-
         # Entscheidung, der zugehörige Key muss dann auch da sein.
-        if self.llm_provider == "mistral" and not self.mistral_api_key:
-            raise ValueError(
-                "HV_LLM_PROVIDER=mistral gesetzt, aber HV_MISTRAL_API_KEY fehlt."
-            )
+        if self.llm_provider == "mistral":
+            if NVIDIA_STATT_MISTRAL and not self.nvidia_api_key:
+                raise ValueError(
+                    "HV_LLM_PROVIDER=mistral gesetzt und NVIDIA_STATT_MISTRAL "
+                    "in app/config.py aktiviert, aber HV_NVIDIA_API_KEY fehlt."
+                )
+            if not NVIDIA_STATT_MISTRAL and not self.mistral_api_key:
+                raise ValueError(
+                    "HV_LLM_PROVIDER=mistral gesetzt, aber HV_MISTRAL_API_KEY fehlt."
+                )
         if self.llm_provider == "anthropic" and not self.anthropic_api_key:
             raise ValueError(
                 "HV_LLM_PROVIDER=anthropic gesetzt, aber HV_ANTHROPIC_API_KEY fehlt."
