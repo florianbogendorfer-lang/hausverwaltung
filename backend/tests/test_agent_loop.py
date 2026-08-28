@@ -97,3 +97,18 @@ def test_unklares_anliegen_wird_eskaliert():
     aktionen_response = client.get(f"/api/faelle/{fall['id']}/aktionen")
     aktionsarten = {a["aktionsart"] for a in aktionen_response.json()}
     assert "fall:eskaliert" in aktionsarten
+
+
+def test_uebergrosser_mailinhalt_wird_abgelehnt():
+    """OWASP Input Validation Cheat Sheet: jede Eingabe muss längenbegrenzt
+    sein — sonst könnte ein einzelner Eingang unbegrenzt LLM-Tokenkosten
+    verursachen."""
+    response = client.post(
+        "/api/postfach/eingang",
+        json={
+            "von": "unbekannt@example.test",
+            "betreff": "Frage",
+            "inhalt": "x" * 20_001,
+        },
+    )
+    assert response.status_code == 422

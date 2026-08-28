@@ -9,9 +9,12 @@ from app.models.fall import FallTyp
 
 
 class EingehendeMail(BaseModel):
-    von: str
-    betreff: str
-    inhalt: str
+    # Obergrenzen nach OWASP Input Validation Cheat Sheet (jede Eingabe
+    # längenbegrenzen) — verhindert, dass ein einzelner Eingang unbegrenzt
+    # LLM-Tokenkosten verursacht oder die DB mit übergroßen Texten flutet.
+    von: str = Field(max_length=320)  # RFC 5321 max. Mailadressenlänge
+    betreff: str = Field(max_length=500)
+    inhalt: str = Field(max_length=20_000)
 
 
 class Einordnung(BaseModel):
