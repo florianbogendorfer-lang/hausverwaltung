@@ -125,28 +125,57 @@ sich per `VITE_API_BASE_URL` überschreiben.
 ### Prüfen
 
 Alle API-Routen liegen unter `/api` (nur `/health` liegt auf Root-Ebene) —
-siehe [Deployment](#deployment-clever-cloud) für den Hintergrund.
+siehe [Deployment](#deployment-clever-cloud) für den Hintergrund. Bis auf
+Login/Logout und die öffentliche Kundenansicht (`/api/ticket/{token}`)
+verlangen alle Routen eine gültige Session (siehe
+[Nutzer/Login](#nutzer-und-login) unten) — die Beispiele hier loggen sich
+daher zuerst per Cookie-Jar ein.
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/api/objekte
-curl http://localhost:8000/api/dienstleister?gewerk=schlosser
+
+# Einloggen (Demo-Zugangsdaten, siehe unten) — Cookie-Jar für die Folgeaufrufe
+curl -c /tmp/hv-cookies.txt -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" -d '{"email":"admin@example.test","passwort":"admin123"}'
+
+curl -b /tmp/hv-cookies.txt http://localhost:8000/api/objekte
+curl -b /tmp/hv-cookies.txt "http://localhost:8000/api/dienstleister?gewerk=schlosser"
 
 # Referenzfall „Türschloss defekt" einspielen
-curl -X POST http://localhost:8000/api/postfach/eingang \
+curl -b /tmp/hv-cookies.txt -X POST http://localhost:8000/api/postfach/eingang \
   -H "Content-Type: application/json" \
   -d '{"von":"erika.musterfrau@example.test","betreff":"Türschloss defekt","inhalt":"Das Türschloss meiner Wohnung in der Musterstraße 5 ist kaputt. Erika Musterfrau"}'
 
 # Trace des erzeugten Falls ansehen (Fall-Id aus der Antwort oben)
-curl http://localhost:8000/api/faelle/1/trace
+curl -b /tmp/hv-cookies.txt http://localhost:8000/api/faelle/1/trace
 
-# Offene Freigabe-Queue ansehen und entscheiden (Freigabe-Id aus der Liste)
-curl http://localhost:8000/api/freigaben
-curl -X POST http://localhost:8000/api/freigaben/1/freigeben \
-  -H "Content-Type: application/json" -d '{"entscheider":"operator@example.test"}'
-curl -X POST http://localhost:8000/api/freigaben/1/ablehnen \
-  -H "Content-Type: application/json" -d '{"entscheider":"operator@example.test","grund":"..."}'
+# Offene Freigabe-Queue ansehen und entscheiden (Freigabe-Id aus der Liste) —
+# "entscheider" kommt aus der Session, nicht aus dem Request-Body (siehe unten)
+curl -b /tmp/hv-cookies.txt http://localhost:8000/api/freigaben
+curl -b /tmp/hv-cookies.txt -X POST http://localhost:8000/api/freigaben/1/freigeben \
+  -H "Content-Type: application/json" -d '{}'
+curl -b /tmp/hv-cookies.txt -X POST http://localhost:8000/api/freigaben/1/ablehnen \
+  -H "Content-Type: application/json" -d '{"grund":"..."}'
 ```
+
+### Nutzer und Login
+
+Rollen-Login statt offenem Zugriff (`backend/app/auth.py`,
+`backend/app/routers/auth.py`): Session-Cookie (HttpOnly, SameSite=Lax,
+im Deploy zusätzlich Secure — siehe unten), bcrypt-Passwort-Hashing,
+zwei Rollen (`admin` darf Fälle löschen und Benutzer verwalten, `user`
+darf alles andere). Härtung nach OWASP Authentication Cheat Sheet:
+zeitkonstanter Login-Vergleich gegen User-Enumeration, Konto-Lockout mit
+exponentiell wachsender Sperrdauer nach 5 Fehlversuchen, zusätzliche
+IP-Rate-Bremse gegen "Lockout als DoS" (`app/rate_limit.py`), 15-Zeichen-
+Mindestlänge statt Komplexitätsregeln.
+
+`python -m app.seed` legt zwei Demo-Konten an:
+`admin@example.test` / `admin123` (Admin) und `user@example.test` /
+`user1234` (User). Die Passwörter kommen aus `HV_SEED_ADMIN_PASSWORT`/
+`HV_SEED_USER_PASSWORT` — **auf einem öffentlich erreichbaren Deployment
+unbedingt auf starke, zufällige Werte setzen**, sonst trägt der
+Admin-Login ein aus diesem Repo bekanntes, triviales Passwort.
 
 ### Tests
 
@@ -241,10 +270,18 @@ kollidieren, wenn beides aus demselben Origin kommt.
 3. Optional als Umgebungsvariablen setzen: `HV_LLM_PROVIDER` (`anthropic`
    oder `mistral`) plus `HV_ANTHROPIC_API_KEY`/`HV_MISTRAL_API_KEY` (ohne
    Konfiguration läuft automatisch der regelbasierte `DemoLLMClient`,
-   siehe oben). Ebenfalls optional: `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/
-   `HV_SMTP_PASSWORT`/`HV_SMTP_ABSENDER` für echten Mailversand (§16
-   Phase 6) — ohne diese Variablen bleibt der Versand vollständig
-   simuliert.
+   siehe oben — ist `HV_LLM_PROVIDER` gesetzt, aber der zugehörige Key
+   fehlt, scheitert der Start bewusst sofort mit einer klaren Meldung
+   statt später kryptisch beim ersten Mail-Eingang). Ebenfalls optional:
+   `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/`HV_SMTP_PASSWORT`/
+   `HV_SMTP_ABSENDER` für echten Mailversand (§16 Phase 6) — ohne diese
+   Variablen bleibt der Versand vollständig simuliert. **Empfohlen:**
+   `HV_SEED_ADMIN_PASSWORT`/`HV_SEED_USER_PASSWORT` auf starke, zufällige
+   Werte setzen (siehe [Nutzer/Login](#nutzer-und-login)) — sonst trägt
+   der Admin-Login die im Repo sichtbaren Demo-Passwörter.
+   `HV_COOKIE_SECURE` setzt `docker-entrypoint.sh` im Deploy-Pfad bereits
+   automatisch auf `true` (TLS-Terminierung durch Clever Cloud), das muss
+   normalerweise nicht manuell gesetzt werden.
 4. `PORT` wird von Clever Cloud automatisch injiziert, der Container
    bindet daran (`docker-entrypoint.sh`, Fallback `8080` für lokale Tests).
 5. Deploy auslösen — beim Containerstart laufen die Alembic-Migrationen
