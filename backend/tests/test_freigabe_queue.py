@@ -113,3 +113,32 @@ def test_freigaben_liste_zeigt_standardmaessig_nur_offene():
 
     alle = client.get("/api/freigaben", params={"nur_offene": False}).json()
     assert freigabe["id"] in [f["id"] for f in alle]
+
+
+def test_geloeschter_fall_verschwindet_aus_freigaben_liste():
+    fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
+
+    loeschen = client.delete(f"/api/faelle/{fall['id']}")
+    assert loeschen.status_code == 204
+
+    offene = client.get("/api/freigaben").json()
+    assert freigabe["id"] not in [f["id"] for f in offene]
+
+    alle = client.get("/api/freigaben", params={"nur_offene": False}).json()
+    assert freigabe["id"] not in [f["id"] for f in alle]
+
+
+def test_freigeben_fuer_geloeschten_fall_wird_abgelehnt():
+    fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
+    client.delete(f"/api/faelle/{fall['id']}")
+
+    response = client.post(f"/api/freigaben/{freigabe['id']}/freigeben", json={})
+    assert response.status_code == 409
+
+
+def test_ablehnen_fuer_geloeschten_fall_wird_abgelehnt():
+    fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
+    client.delete(f"/api/faelle/{fall['id']}")
+
+    response = client.post(f"/api/freigaben/{freigabe['id']}/ablehnen", json={"grund": "x"})
+    assert response.status_code == 409

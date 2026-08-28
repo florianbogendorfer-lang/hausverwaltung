@@ -12,7 +12,7 @@ from app.agent.freigabe_service import FreigabeBereitsEntschieden, ablehnen, fre
 from app.agent.mail_adapter import MailAdapter, get_mail_adapter
 from app.auth import aktueller_benutzer
 from app.db import get_session
-from app.models import Benutzer, Freigabe, FreigabeStatus
+from app.models import Benutzer, Fall, Freigabe, FreigabeStatus
 
 router = APIRouter(prefix="/freigaben", tags=["freigaben"])
 
@@ -73,13 +73,29 @@ def _get_freigabe_oder_404(session: Session, freigabe_id: int) -> Freigabe:
     return freigabe
 
 
+def _sicherstellen_fall_nicht_geloescht(session: Session, freigabe: Freigabe) -> None:
+    # Ein Soft-Delete des Falls (fall_loeschen) ließ bisher offene
+    # Freigaben unangetastet — sie blieben in der Freigabe-Queue sichtbar
+    # (Badge-Zahl!) und über die API weiter freigeb-/ablehnbar, obwohl der
+    # zugehörige Fall dem Bearbeiter als gelöscht/verschwunden erscheint.
+    fall = session.get(Fall, freigabe.fall_id)
+    if fall is not None and fall.geloescht:
+        raise HTTPException(
+            status_code=409, detail="Der zugehörige Fall wurde gelöscht"
+        )
+
+
 @router.get("", response_model=list[FreigabeAnsicht])
 def liste_freigaben(
     nur_offene: bool = True,
     fall_id: Optional[int] = None,
     session: Session = Depends(get_session),
 ) -> list[FreigabeAnsicht]:
-    query = select(Freigabe)
+    # Freigaben gelöschter Fälle ausblenden — dieselbe Sichtbarkeitsregel
+    # wie beim Fall selbst ("verschwindet aus Board/Listen", siehe
+    # fall_loeschen in app/routers/faelle.py); der Audit-Trail (Aktionen)
+    # bleibt davon unberührt.
+    query = select(Freigabe).join(Fall, Freigabe.fall_id == Fall.id).where(Fall.geloescht.is_(False))
     if nur_offene:
         query = query.where(Freigabe.status == FreigabeStatus.offen)
     if fall_id is not None:
@@ -106,6 +122,7 @@ def freigabe_erteilen(
     Session, nicht mehr als Klartext-Feld vom Client — sonst könnte sich
     jeder eingeloggte Nutzer im Audit-Trail als jemand anderes ausgeben."""
     freigabe = _get_freigabe_oder_404(session, freigabe_id)
+    _sicherstellen_fall_nicht_geloescht(session, freigabe)
     try:
         freigabe = freigeben(session, freigabe, benutzer.email, body.bearbeiteter_text, mail_adapter)
     except FreigabeBereitsEntschieden as exc:
@@ -123,6 +140,7 @@ def freigabe_ablehnen(
     """FR-HITL-5: Ablehnen — Grund fließt in den Fall zurück. `entscheider`
     kommt wie bei freigeben() aus der Session (siehe dort)."""
     freigabe = _get_freigabe_oder_404(session, freigabe_id)
+    _sicherstellen_fall_nicht_geloescht(session, freigabe)
     try:
         freigabe = ablehnen(session, freigabe, benutzer.email, body.grund)
     except FreigabeBereitsEntschieden as exc:
