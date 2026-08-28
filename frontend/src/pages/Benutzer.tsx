@@ -128,6 +128,7 @@ export default function BenutzerVerwaltung() {
             </span>
             <input
               required
+              autoComplete="off"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
@@ -140,6 +141,7 @@ export default function BenutzerVerwaltung() {
             <input
               type="email"
               required
+              autoComplete="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
@@ -153,6 +155,7 @@ export default function BenutzerVerwaltung() {
               type="password"
               required
               minLength={15}
+              autoComplete="new-password"
               value={passwort}
               onChange={(e) => setPasswort(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
