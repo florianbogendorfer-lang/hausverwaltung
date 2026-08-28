@@ -40,6 +40,9 @@ class Sitzung(SQLModel, table=True):
     __tablename__ = "sitzungen"
 
     token: str = Field(primary_key=True)
-    benutzer_id: int = Field(foreign_key="benutzer.id")
+    benutzer_id: int = Field(foreign_key="benutzer.id", index=True)
     erstellt_am: datetime = Field(default_factory=datetime.utcnow)
-    laeuft_ab_am: datetime
+    # Indiziert, weil sitzung_anlegen (app/auth.py) bei jedem Login abgelaufene
+    # Zeilen per WHERE laeuft_ab_am < ... löscht (Aufräum-Mechanismus dieser
+    # Session).
+    laeuft_ab_am: datetime = Field(index=True)
