@@ -5,6 +5,7 @@ Modell-IDs sind austauschbar (Provider-Wechsel Anthropic-API → Bedrock EU
 per Konfiguration, siehe §12/§13) — daher hier und nicht im Code verdrahtet.
 """
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +68,22 @@ class Settings(BaseSettings):
     # Quellcode bekanntes, triviales Passwort trägt.
     seed_admin_passwort: str = "admin123"
     seed_user_passwort: str = "user1234"
+
+    @model_validator(mode="after")
+    def _provider_und_key_zusammen_pruefen(self) -> "Settings":
+        # Fail fast beim Start statt eines kryptischen Fehlers erst beim
+        # ersten LLM-Aufruf mitten im (asynchron nicht wiederholten)
+        # Agent-Loop — HV_LLM_PROVIDER ist eine explizite Betreiber-
+        # Entscheidung, der zugehörige Key muss dann auch da sein.
+        if self.llm_provider == "mistral" and not self.mistral_api_key:
+            raise ValueError(
+                "HV_LLM_PROVIDER=mistral gesetzt, aber HV_MISTRAL_API_KEY fehlt."
+            )
+        if self.llm_provider == "anthropic" and not self.anthropic_api_key:
+            raise ValueError(
+                "HV_LLM_PROVIDER=anthropic gesetzt, aber HV_ANTHROPIC_API_KEY fehlt."
+            )
+        return self
 
 
 settings = Settings()
