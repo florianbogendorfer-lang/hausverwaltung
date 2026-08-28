@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Dienstleister, Gewerk
+from app.models import Dienstleister, Fall, Gewerk
 
 router = APIRouter(prefix="/dienstleister", tags=["dienstleister"])
 
@@ -72,5 +72,14 @@ def dienstleister_loeschen(dienstleister_id: int, session: Session = Depends(get
     dienstleister = session.get(Dienstleister, dienstleister_id)
     if dienstleister is None:
         raise HTTPException(status_code=404, detail="Dienstleister nicht gefunden")
+
+    # Referentielle Integrität explizit prüfen — siehe Begründung in
+    # app/routers/objekte.py::objekt_loeschen.
+    if session.exec(select(Fall).where(Fall.dienstleister_id == dienstleister_id)).first() is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Dienstleister kann nicht gelöscht werden — wird von Fällen referenziert",
+        )
+
     session.delete(dienstleister)
     session.commit()
