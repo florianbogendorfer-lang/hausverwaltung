@@ -7,8 +7,16 @@ from sqlmodel import Session
 from app.auth import aktueller_benutzer, login_pruefen, sitzung_anlegen, sitzung_beenden
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle
+from app.rate_limit import ip_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# IP-Bremse zusätzlich zum Konto-Lockout in app.auth — verhindert, dass ein
+# Angreifer den Lockout-Mechanismus selbst als DoS gegen fremde Konten
+# missbraucht (siehe app/rate_limit.py). 20 Versuche/5 Minuten ist großzügig
+# genug für legitime Nutzer (auch hinter geteilten IPs/NAT), bremst aber
+# automatisiertes Durchprobieren spürbar.
+_LOGIN_RATE_LIMIT = Depends(ip_rate_limit(max_versuche=20, fenster_sekunden=300))
 
 
 class LoginEingabe(BaseModel):
@@ -27,7 +35,7 @@ def _antwort(benutzer: Benutzer) -> BenutzerAntwort:
     return BenutzerAntwort(id=benutzer.id, name=benutzer.name, email=benutzer.email, rolle=benutzer.rolle)
 
 
-@router.post("/login", response_model=BenutzerAntwort)
+@router.post("/login", response_model=BenutzerAntwort, dependencies=[_LOGIN_RATE_LIMIT])
 def login(
     eingabe: LoginEingabe, response: Response, session: Session = Depends(get_session)
 ) -> BenutzerAntwort:
