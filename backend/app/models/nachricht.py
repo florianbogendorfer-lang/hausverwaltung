@@ -27,6 +27,13 @@ class NachrichtStatus(str, enum.Enum):
     # dort. Unterscheidet sich bewusst von gesendet_simuliert, damit das
     # Audit-Log (§11) erkennen lässt, ob wirklich etwas rausging.
     gesendet = "gesendet"
+    # Ein SMTP-Fehler (Netzwerk, ungültiger Empfänger, o. Ä.) darf die
+    # bereits atomar reservierte Freigabe-Entscheidung nicht spurlos
+    # verschlucken (siehe app.agent.freigabe_service.freigeben) — dieser
+    # Status macht sichtbar, dass die Freigabe zwar entschieden ist, der
+    # eigentliche Versand aber fehlgeschlagen ist und manuell nachverfolgt
+    # werden muss.
+    versand_fehlgeschlagen = "versand_fehlgeschlagen"
 
 
 class Nachricht(SQLModel, table=True):

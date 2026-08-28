@@ -33,6 +33,25 @@ class FreigabeBereitsEntschieden(Exception):
     Ablehnen derselben Freigabe."""
 
 
+class VersandFehlgeschlagen(Exception):
+    """Die Freigabe-Entscheidung selbst bleibt gültig (die atomare
+    Reservierung in `_atomar_reservieren` ist bereits committet, FR-HITL-8
+    gilt weiter) — nur der tatsächliche Mailversand ist fehlgeschlagen
+    (Netzwerk, SMTP-Fehler, ungültiger Empfänger, o. Ä.). Ohne eigene
+    Behandlung würde die Exception aus `MailAdapter.senden` sonst
+    unbehandelt durchschlagen, während die Freigabe bereits als entschieden
+    gilt — für den Bearbeiter nicht von einem erfolgreichen Versand zu
+    unterscheiden. Der Aufrufer meldet stattdessen einen klaren Fehler."""
+
+    def __init__(self, freigabe: Freigabe, ursprung: BaseException) -> None:
+        self.freigabe = freigabe
+        self.ursprung = ursprung
+        super().__init__(
+            f"Freigabe {freigabe.id} wurde entschieden, aber der Mailversand ist "
+            f"fehlgeschlagen: {ursprung}"
+        )
+
+
 def ist_ueberfaellig(freigabe: Freigabe) -> bool:
     """FR-HITL-7: markiert offene Freigaben, die die konfigurierte Frist
     überschritten haben (im Prototyp keine Auto-Ausführung — nur Anzeige)."""
@@ -80,14 +99,24 @@ def freigeben(
     )
     _atomar_reservieren(session, freigabe, neuer_status)
     fall = session.get(Fall, freigabe.fall_id)
+    versand_fehler: Exception | None = None
 
     if freigabe.aktionstyp == Aktionstyp.nachricht_senden:
         nachricht = session.get(Nachricht, freigabe.payload["nachricht_id"])
         if bearbeiteter_text is not None:
             nachricht.inhalt = bearbeiteter_text
-        (mail_adapter or get_mail_adapter()).senden(nachricht)
+        try:
+            (mail_adapter or get_mail_adapter()).senden(nachricht)
+        except Exception as exc:  # noqa: BLE001 — bewusst breit, siehe VersandFehlgeschlagen
+            versand_fehler = exc
+            nachricht.status = NachrichtStatus.versand_fehlgeschlagen
         session.add(nachricht)
-        fall.status = FallStatus.dienstleister_beauftragt
+        # Nur wenn der Versand tatsächlich geklappt hat, ist der
+        # Dienstleister wirklich beauftragt — sonst bliebe der Fall
+        # fälschlich in einem Status, der eine Aktion vortäuscht, die real
+        # nicht stattgefunden hat.
+        if versand_fehler is None:
+            fall.status = FallStatus.dienstleister_beauftragt
     elif freigabe.aktionstyp == Aktionstyp.dienstleister_beauftragen:
         fall.status = FallStatus.dienstleister_beauftragt
     elif freigabe.aktionstyp == Aktionstyp.rechnung_erfassen:
@@ -115,6 +144,16 @@ def freigeben(
         },
         freigabe_id=freigabe.id,
     )
+    if versand_fehler is not None:
+        log_aktion(
+            session,
+            freigabe.fall_id,
+            Akteur.operator,
+            "freigabe:versand_fehlgeschlagen",
+            {"freigabe_id": freigabe.id, "fehler": str(versand_fehler)},
+            freigabe_id=freigabe.id,
+        )
+        raise VersandFehlgeschlagen(freigabe, versand_fehler)
     return freigabe
 
 

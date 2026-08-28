@@ -23,7 +23,8 @@ export type NachrichtStatus =
   | "freigegeben"
   | "gesendet_simuliert"
   | "gesendet"
-  | "abgelehnt";
+  | "abgelehnt"
+  | "versand_fehlgeschlagen";
 export type TracePhase = "wahrnehmung" | "plan" | "tool_call" | "tool_result" | "entscheidung" | "reasoning";
 export type Aktionstyp = "nachricht_senden" | "dienstleister_beauftragen" | "rechnung_erfassen";
 export type FreigabeStatus = "offen" | "freigegeben" | "bearbeitet_freigegeben" | "abgelehnt";

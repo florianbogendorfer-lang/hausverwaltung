@@ -64,6 +64,7 @@ const NACHRICHT_STATUS: Record<NachrichtStatus, { ton: Ton; label: string }> = {
   gesendet_simuliert: { ton: "emerald", label: "gesendet (simuliert)" },
   gesendet: { ton: "emerald", label: "gesendet" },
   abgelehnt: { ton: "rose", label: "abgelehnt" },
+  versand_fehlgeschlagen: { ton: "rose", label: "Versand fehlgeschlagen" },
 };
 
 export function NachrichtStatusBadge({ status }: { status: NachrichtStatus }) {

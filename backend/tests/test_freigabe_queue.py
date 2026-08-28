@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.agent.mail_adapter import get_mail_adapter
 from app.agent.model_router import ModelRouter
 from app.main import app
 from app.models import FallStatus, NachrichtStatus
@@ -142,3 +143,43 @@ def test_ablehnen_fuer_geloeschten_fall_wird_abgelehnt():
 
     response = client.post(f"/api/freigaben/{freigabe['id']}/ablehnen", json={"grund": "x"})
     assert response.status_code == 409
+
+
+class _FehlschlagenderMailAdapter:
+    """Simuliert einen SMTP-Fehler (Netzwerk, ungültiger Empfänger, o. Ä.)
+    — siehe app.agent.freigabe_service.VersandFehlgeschlagen: die bereits
+    atomar reservierte Freigabe-Entscheidung darf dabei nicht verloren
+    gehen, auch wenn der eigentliche Versand scheitert."""
+
+    def senden(self, nachricht) -> None:
+        raise ConnectionError("SMTP-Verbindung fehlgeschlagen (simuliert)")
+
+
+def test_fehlgeschlagener_versand_verliert_die_entscheidung_nicht():
+    fall, freigabe = _fall_mit_offener_freigabe_erzeugen()
+    app.dependency_overrides[get_mail_adapter] = lambda: _FehlschlagenderMailAdapter()
+    try:
+        response = client.post(f"/api/freigaben/{freigabe['id']}/freigeben", json={})
+    finally:
+        del app.dependency_overrides[get_mail_adapter]
+
+    assert response.status_code == 502
+
+    # Die Entscheidung selbst bleibt gültig (FR-HITL-8) — ein erneuter
+    # Versuch darf NICHT nochmal senden, sondern muss weiterhin 409 liefern.
+    zweiter_versuch = client.post(f"/api/freigaben/{freigabe['id']}/freigeben", json={})
+    assert zweiter_versuch.status_code == 409
+
+    fall_response = client.get(f"/api/faelle/{fall['id']}").json()
+    # Der Dienstleister wurde real nicht kontaktiert — der Fall darf nicht
+    # fälschlich als "beauftragt" erscheinen.
+    assert fall_response["status"] != FallStatus.dienstleister_beauftragt.value
+
+    nachrichten = client.get(f"/api/faelle/{fall['id']}/nachrichten").json()
+    ausgehende = next(n for n in nachrichten if n["richtung"] == "ausgehend")
+    assert ausgehende["status"] == NachrichtStatus.versand_fehlgeschlagen.value
+
+    aktionsarten = {
+        a["aktionsart"] for a in client.get(f"/api/faelle/{fall['id']}/aktionen").json()
+    }
+    assert "freigabe:versand_fehlgeschlagen" in aktionsarten

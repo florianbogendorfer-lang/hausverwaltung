@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from app.agent.freigabe_service import FreigabeBereitsEntschieden, ablehnen, freigeben, ist_ueberfaellig
+from app.agent.freigabe_service import (
+    FreigabeBereitsEntschieden,
+    VersandFehlgeschlagen,
+    ablehnen,
+    freigeben,
+    ist_ueberfaellig,
+)
 from app.agent.mail_adapter import MailAdapter, get_mail_adapter
 from app.auth import aktueller_benutzer
 from app.db import get_session
@@ -127,6 +133,11 @@ def freigabe_erteilen(
         freigabe = freigeben(session, freigabe, benutzer.email, body.bearbeiteter_text, mail_adapter)
     except FreigabeBereitsEntschieden as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except VersandFehlgeschlagen as exc:
+        # Die Freigabe-Entscheidung ist bereits gültig committet (siehe
+        # dortiger Docstring) — 502, weil der Fehler bei einem externen
+        # Dienst (SMTP) liegt, nicht bei dieser Anfrage selbst.
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return FreigabeAnsicht.aus(freigabe)
 
 
