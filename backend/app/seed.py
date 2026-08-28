@@ -9,6 +9,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.auth import passwort_hashen
+from app.config import settings
 from app.db import create_db_and_tables, engine
 from app.models import Benutzer, BenutzerRolle, Dienstleister, Dokument, Gewerk, Kontakt, KontaktRolle, Objekt
 
@@ -36,11 +37,15 @@ def seed(session: Session) -> None:
 
 
 def _seed_benutzer(session: Session) -> None:
+    # Passwörter kommen aus der Konfiguration (HV_SEED_ADMIN_PASSWORT /
+    # HV_SEED_USER_PASSWORT), damit ein öffentlich erreichbares Deployment
+    # nicht zwangsläufig die im Quellcode sichtbaren Demo-Passwörter trägt —
+    # siehe app.config.Settings.
     session.add(
         Benutzer(
             name="Admin",
             email="admin@example.test",
-            passwort_hash=passwort_hashen("admin123"),
+            passwort_hash=passwort_hashen(settings.seed_admin_passwort),
             rolle=BenutzerRolle.admin,
         )
     )
@@ -48,14 +53,16 @@ def _seed_benutzer(session: Session) -> None:
         Benutzer(
             name="Sachbearbeiterin",
             email="user@example.test",
-            passwort_hash=passwort_hashen("user1234"),
+            passwort_hash=passwort_hashen(settings.seed_user_passwort),
             rolle=BenutzerRolle.user,
         )
     )
     session.commit()
     print(
-        "Demo-Benutzer angelegt — admin@example.test / admin123 (Admin), "
-        "user@example.test / user1234 (User)."
+        "Demo-Benutzer angelegt — admin@example.test (Admin), "
+        "user@example.test (User). Passwörter aus HV_SEED_ADMIN_PASSWORT / "
+        "HV_SEED_USER_PASSWORT bzw. den (nur für lokale Entwicklung "
+        "gedachten) Default-Werten."
     )
 
 

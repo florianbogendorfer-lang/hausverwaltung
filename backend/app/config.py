@@ -59,5 +59,14 @@ class Settings(BaseSettings):
     # automatisch auf True, ohne dass eine manuelle Konfiguration nötig ist.
     cookie_secure: bool = False
 
+    # Passwörter der von `app.seed` angelegten Demo-Benutzer. Default sind
+    # die bisherigen, im Repo öffentlich sichtbaren Demo-Werte (nur für
+    # lokale Entwicklung/Demo unbedenklich) — im Deploy-Pfad (Clever Cloud)
+    # sollten HV_SEED_ADMIN_PASSWORT/HV_SEED_USER_PASSWORT gesetzt werden,
+    # damit der öffentlich erreichbare Admin-Login nicht ein aus dem
+    # Quellcode bekanntes, triviales Passwort trägt.
+    seed_admin_passwort: str = "admin123"
+    seed_user_passwort: str = "user1234"
+
 
 settings = Settings()
