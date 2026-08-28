@@ -56,7 +56,14 @@ def login_pruefen(session: Session, email: str, passwort: str) -> Benutzer | Non
     ob das Konto existiert. Gibt bei Erfolg den Benutzer zurück, sonst
     None — der Aufrufer meldet in jedem Fall dieselbe generische
     Fehlermeldung (kein User-Enumeration-Leck)."""
-    benutzer = session.exec(select(Benutzer).where(Benutzer.email == email)).first()
+    # E-Mail-Adressen case-insensitiv behandeln (Domain-Teil ist es laut
+    # RFC 5321 immer, der Local-Part wird in der Praxis von praktisch
+    # jedem Provider ebenfalls case-insensitiv behandelt) — sonst könnte
+    # sich ein Nutzer mit anderer Groß-/Kleinschreibung fälschlich
+    # "ausgesperrt" fühlen. Benutzer.anlegen speichert email bereits
+    # normalisiert (siehe app/routers/benutzer.py), daher reicht hier ein
+    # Normalisieren der Eingabe für den Vergleich.
+    benutzer = session.exec(select(Benutzer).where(Benutzer.email == email.strip().lower())).first()
     ziel_hash = benutzer.passwort_hash if benutzer is not None else _DUMMY_HASH
     # IMMER ausführen, auch wenn `benutzer` None ist oder gesperrt —
     # sonst wäre die Antwortzeit selbst das Leck.

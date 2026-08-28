@@ -54,6 +54,44 @@ def test_login_logout_und_geschuetzter_zugriff(echter_login_client: TestClient):
     assert nach_logout.status_code == 401
 
 
+def test_login_ignoriert_gross_kleinschreibung_der_email(echter_login_client: TestClient):
+    login = echter_login_client.post(
+        "/api/auth/login", json={"email": "Admin@Example.Test", "passwort": "admin123"}
+    )
+    assert login.status_code == 200
+    assert login.json()["email"] == "admin@example.test"
+
+
+def test_benutzer_anlegen_normalisiert_email_und_erkennt_duplikat_ueber_case(
+    echter_login_client: TestClient,
+):
+    echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
+    )
+    erstellt = echter_login_client.post(
+        "/api/benutzer",
+        json={
+            "name": "Case-Test",
+            "email": "Case.Test@Example.Test",
+            "passwort": "ein-ausreichend-langes-testpasswort",
+            "rolle": "user",
+        },
+    )
+    assert erstellt.status_code == 201
+    assert erstellt.json()["email"] == "case.test@example.test"
+
+    duplikat = echter_login_client.post(
+        "/api/benutzer",
+        json={
+            "name": "Case-Test 2",
+            "email": "case.test@example.test",
+            "passwort": "ein-anderes-ausreichend-langes-passwort",
+            "rolle": "user",
+        },
+    )
+    assert duplikat.status_code == 409
+
+
 def test_normaler_user_darf_fall_nicht_loeschen(echter_login_client: TestClient):
     login = echter_login_client.post(
         "/api/auth/login", json={"email": "user@example.test", "passwort": "user1234"}

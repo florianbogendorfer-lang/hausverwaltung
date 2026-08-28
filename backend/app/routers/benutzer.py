@@ -43,12 +43,17 @@ def liste(session: Session = Depends(get_session)) -> list[BenutzerAusgabe]:
 
 @router.post("", response_model=BenutzerAusgabe, status_code=201)
 def anlegen(eingabe: BenutzerEingabe, session: Session = Depends(get_session)) -> BenutzerAusgabe:
-    vorhanden = session.exec(select(Benutzer).where(Benutzer.email == eingabe.email)).first()
+    # E-Mail case-insensitiv normalisieren (siehe app/auth.py::login_pruefen)
+    # — sonst könnten "Admin@Example.test" und "admin@example.test" als
+    # zwei verschiedene Konten angelegt werden, obwohl sie de facto
+    # dieselbe Adresse sind.
+    email = eingabe.email.strip().lower()
+    vorhanden = session.exec(select(Benutzer).where(Benutzer.email == email)).first()
     if vorhanden is not None:
         raise HTTPException(status_code=409, detail="E-Mail bereits vergeben")
     benutzer = Benutzer(
         name=eingabe.name,
-        email=eingabe.email,
+        email=email,
         passwort_hash=passwort_hashen(eingabe.passwort),
         rolle=eingabe.rolle,
     )
