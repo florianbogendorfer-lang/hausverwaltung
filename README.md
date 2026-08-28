@@ -318,13 +318,17 @@ kollidieren, wenn beides aus demselben Origin kommt.
    statt später kryptisch beim ersten Mail-Eingang). Ebenfalls optional:
    `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/`HV_SMTP_PASSWORT`/
    `HV_SMTP_ABSENDER` für echten Mailversand (§16 Phase 6) — ohne diese
-   Variablen bleibt der Versand vollständig simuliert. **Pflicht, sobald
-   `HV_COOKIE_SECURE` aktiv ist** (siehe unten):
+   Variablen bleibt der Versand vollständig simuliert. **Dringend
+   empfohlen, sobald `HV_COOKIE_SECURE` aktiv ist** (siehe unten):
    `HV_SEED_ADMIN_PASSWORT`/`HV_SEED_USER_PASSWORT` auf starke, zufällige
-   Werte setzen (siehe [Nutzer/Login](#nutzer-und-login)) — der Start
-   scheitert sonst bewusst sofort mit einer klaren Meldung, statt den
-   Admin-Login unbemerkt mit einem im Repo öffentlich sichtbaren
-   Demo-Passwort live zu schalten (`app/config.py`).
+   Werte setzen (siehe [Nutzer/Login](#nutzer-und-login)) — fehlen sie,
+   erzeugt der Start automatisch ein zufälliges Passwort und schreibt es
+   einmalig klar ins Deploy-Log (`app/config.py`), damit der öffentlich
+   erreichbare Admin-Login nicht unbemerkt das im Repo sichtbare
+   Demo-Passwort trägt UND der Deploy trotzdem nicht blockiert. Das
+   Zufallspasswort aus dem allerersten erfolgreichen Deploy-Log notieren
+   (spätere Neustarts erzeugen neue, ungenutzte Werte, da der Seed-Lauf
+   idempotent ist) oder gleich eigene Werte setzen.
    `HV_COOKIE_SECURE` setzt `docker-entrypoint.sh` im Deploy-Pfad bereits
    automatisch auf `true` (TLS-Terminierung durch Clever Cloud), das muss
    normalerweise nicht manuell gesetzt werden.

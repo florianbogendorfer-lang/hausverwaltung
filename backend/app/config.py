@@ -5,6 +5,8 @@ Modell-IDs sind austauschbar (Provider-Wechsel Anthropic-API → Bedrock EU
 per Konfiguration, siehe §12/§13) — daher hier und nicht im Code verdrahtet.
 """
 
+import secrets
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -93,24 +95,37 @@ class Settings(BaseSettings):
         # cookie_secure=True heißt: wir laufen hinter TLS (docker-
         # entrypoint.sh setzt das automatisch im Deploy-Pfad, siehe oben) —
         # also ein öffentlich erreichbares Deployment, kein lokaler Dev-
-        # Server. Ohne diese Prüfung würde ein Betreiber, der HV_SEED_ADMIN_
-        # PASSWORT/HV_SEED_USER_PASSWORT vergisst, unbemerkt einen Admin-
-        # Account mit einem aus dem öffentlichen Quellcode bekannten,
-        # trivialen Passwort live schalten. Fail fast beim Start statt
-        # eines stillen Sicherheitslochs.
+        # Server. Diese Prüfung verhinderte ursprünglich per Fail-Fast, dass
+        # ein Betreiber, der HV_SEED_ADMIN_PASSWORT/HV_SEED_USER_PASSWORT
+        # vergisst, unbemerkt einen Admin-Account mit einem aus dem
+        # öffentlichen Quellcode bekannten, trivialen Passwort live schaltet
+        # — das brach aber den echten Clever-Cloud-Deploy (kein
+        # interaktiver Schritt, um die Variable vor dem allerersten Start
+        # zu setzen; Startfehler == Deploy schlägt endlos fehl, die App ist
+        # nicht erreichbar). Statt hart abzubrechen wird jetzt ein
+        # kryptographisch zufälliges Passwort erzeugt und einmalig klar ins
+        # Deploy-Log geschrieben (Betreiber kann es dort abholen und/oder
+        # HV_SEED_ADMIN_PASSWORT danach setzen) — sicherer als das
+        # bekannte Demo-Passwort, aber ohne die Deploy-Pipeline zu blockieren.
         if self.cookie_secure and self.seed_admin_passwort == self._SEED_ADMIN_PASSWORT_DEFAULT:
-            raise ValueError(
-                "HV_COOKIE_SECURE ist aktiv (Produktions-Deploy), aber "
-                "HV_SEED_ADMIN_PASSWORT wurde nicht gesetzt — der Admin-Account "
-                "würde sonst mit dem öffentlich im Quellcode sichtbaren "
-                "Demo-Passwort angelegt."
+            self.seed_admin_passwort = secrets.token_urlsafe(18)
+            print(
+                "WARNUNG: HV_SEED_ADMIN_PASSWORT war nicht gesetzt — zufälliges "
+                f"Admin-Passwort erzeugt: {self.seed_admin_passwort}\n"
+                "Bitte notieren und HV_SEED_ADMIN_PASSWORT auf einen eigenen "
+                "Wert setzen (dieses zufällige Passwort wird bei jedem Neustart "
+                "neu erzeugt, aber nur beim allerersten Seed-Lauf tatsächlich "
+                "verwendet)."
             )
         if self.cookie_secure and self.seed_user_passwort == self._SEED_USER_PASSWORT_DEFAULT:
-            raise ValueError(
-                "HV_COOKIE_SECURE ist aktiv (Produktions-Deploy), aber "
-                "HV_SEED_USER_PASSWORT wurde nicht gesetzt — der User-Account "
-                "würde sonst mit dem öffentlich im Quellcode sichtbaren "
-                "Demo-Passwort angelegt."
+            self.seed_user_passwort = secrets.token_urlsafe(18)
+            print(
+                "WARNUNG: HV_SEED_USER_PASSWORT war nicht gesetzt — zufälliges "
+                f"User-Passwort erzeugt: {self.seed_user_passwort}\n"
+                "Bitte notieren und HV_SEED_USER_PASSWORT auf einen eigenen "
+                "Wert setzen (dieses zufällige Passwort wird bei jedem Neustart "
+                "neu erzeugt, aber nur beim allerersten Seed-Lauf tatsächlich "
+                "verwendet)."
             )
         return self
 
