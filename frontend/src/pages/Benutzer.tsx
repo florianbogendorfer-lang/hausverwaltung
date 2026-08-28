@@ -132,6 +132,7 @@ export default function BenutzerVerwaltung() {
             <input
               required
               autoComplete="off"
+              maxLength={200}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
@@ -145,6 +146,7 @@ export default function BenutzerVerwaltung() {
               type="email"
               required
               autoComplete="off"
+              maxLength={320}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
