@@ -68,6 +68,17 @@ Funktion injizierbar: Tests laufen mit einem In-Memory-Index und einem
 deterministischen Hash-Embedding (`tests/fakes.py::FakeEmbeddingFunction`)
 weiterhin komplett netzwerkfrei (§0).
 
+**Bekannte CVE, betrifft dieses Deployment nicht:** chromadb 1.0.0–1.5.9
+(installiert: 1.5.9, zum Zeitpunkt dieser Notiz noch ohne offiziellen
+Patch) hat eine kritische Pre-Auth-RCE-Lücke (CVE-2026-45829, CVSS 10.0)
+— aber ausschließlich im eigenständigen, netzwerkexponierten Chroma-
+FastAPI-Server (`chroma run`). Diese App startet nie einen solchen
+Server; `chromadb.PersistentClient` läuft rein lokal/eingebettet ohne
+eigenen Netzwerk-Listener (siehe Sicherheitshinweis in
+`vector_store.py`). Trotzdem im Auge behalten und aktualisieren, sobald
+ein Patch erscheint — und diesen eingebetteten Modus nicht durch einen
+`chroma run`-Server ersetzen, solange die Lücke offen ist.
+
 **Phase 6 — Mail-Adapter-Architektur (bewusst weiter simuliert):**
 `app/agent/mail_adapter.py` formalisiert den ausgehenden Kanal als
 austauschbare `MailAdapter`-Schnittstelle — dieselbe Dependency-Injection
