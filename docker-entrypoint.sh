@@ -25,4 +25,13 @@ alembic upgrade head
 # Prototyp mit synthetischen Testdaten für den sichtbaren End-to-End-Fluss).
 python -m app.seed
 
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8080}"
+# --proxy-headers/--forwarded-allow-ips='*': Clever Cloud terminiert TLS
+# und proxied auf den Container — ohne das würde uvicorn request.client.host
+# (und damit z. B. die IP-Rate-Bremse für /auth/login, siehe
+# app/rate_limit.py) immer auf die interne Proxy-IP setzen, sodass ALLE
+# Nutzer als eine einzige IP erscheinen und sich gegenseitig aussperren
+# könnten. '*' ist hier vertretbar (nicht "jeder Absender wird geglaubt"),
+# weil der Container nur über Clever Clouds eigenen Proxy erreichbar ist,
+# dessen IP nicht fix/dokumentiert ist (Standardmuster für PaaS-Deploys wie
+# Heroku/Render).
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8080}" --proxy-headers --forwarded-allow-ips='*'
