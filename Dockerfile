@@ -30,6 +30,16 @@ COPY --from=frontend-build /app/frontend/dist ./static
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
+# Docker-/OWASP-Best-Practice: nicht als root laufen (CIS Docker Benchmark,
+# OWASP Docker Security Cheat Sheet) — ohne expliziten USER liefe der
+# Prozess sonst mit vollen Root-Rechten im Container, unnötig bei einem
+# Prozess, der nur auf Port 8080 (>1024, kein Root nötig) lauscht und
+# innerhalb von /app schreibt (SQLite-Datei bei lokalen Tests, Chromas
+# Laufzeitverzeichnis). chown VOR dem USER-Wechsel, damit appuser dort
+# schreiben kann.
+RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
