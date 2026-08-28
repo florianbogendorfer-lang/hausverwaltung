@@ -16,6 +16,10 @@ class Akteur(str, enum.Enum):
     agent = "agent"
     operator = "operator"
     system = "system"
+    # Externer Dienstleister über das login-freie Terminportal
+    # (`/dienstleister-portal/{token}`) — kein Systemnutzer, daher ein
+    # eigener Akteur statt operator/agent.
+    dienstleister = "dienstleister"
 
 
 class Aktion(SQLModel, table=True):

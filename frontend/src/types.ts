@@ -77,6 +77,7 @@ export interface Fall {
   id: number;
   ticket_nummer: string;
   zugriffstoken: string;
+  dienstleister_zugriffstoken: string;
   typ: FallTyp;
   gewerk?: Gewerk | null;
   objekt_id?: number | null;
@@ -84,6 +85,7 @@ export interface Fall {
   dienstleister_id?: number | null;
   status: FallStatus;
   betreff: string;
+  termin_am?: string | null;
   zusammenfassung?: string | null;
   konfidenz?: number | null;
   erstellt_am: string;
@@ -141,6 +143,17 @@ export interface TicketAnsicht {
   erstellt_am: string;
   geaendert_am: string;
   nachrichten: TicketNachricht[];
+}
+
+export interface DienstleisterPortalAnsicht {
+  ticket_nummer: string;
+  betreff: string;
+  status: FallStatus;
+  status_text: string;
+  objekt_adresse: string | null;
+  melder_name: string | null;
+  melder_telefon: string | null;
+  termin_am: string | null;
 }
 
 export interface Freigabe {

@@ -32,6 +32,7 @@ from app.routers import (
     auth,
     benutzer,
     dienstleister,
+    dienstleister_portal,
     dokumente,
     faelle,
     freigaben,
@@ -159,6 +160,7 @@ async def sicherheits_header_setzen(request: Request, call_next):
 # Nutzersystem mit Rollen statt offenem Zugriff).
 app.include_router(auth.router, prefix="/api")
 app.include_router(ticket.router, prefix="/api")
+app.include_router(dienstleister_portal.router, prefix="/api")
 
 _angemeldet = [Depends(aktueller_benutzer)]
 app.include_router(objekte.router, prefix="/api", dependencies=_angemeldet)

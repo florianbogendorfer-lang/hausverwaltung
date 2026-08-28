@@ -55,6 +55,18 @@ class Settings(BaseSettings):
     smtp_passwort: str | None = None
     smtp_absender: str | None = None
 
+    # Öffentliche Basis-URL des Deployments (z. B. "https://hv.example.com",
+    # ohne abschließenden Slash) — wird gebraucht, um in Mails an
+    # Dienstleister einen anklickbaren Link zum Terminportal
+    # (/dienstleister-portal/{token}) einzubetten. E-Mail-Clients kennen
+    # anders als der Browser keinen "aktuellen Origin", eine relative URL
+    # funktioniert dort nicht. Ohne gesetzten Wert lässt der Agent den Link
+    # einfach weg (siehe app/agent/loop.py) — kein Fail-Fast, da sonst
+    # (siehe Incident zu HV_SEED_ADMIN_PASSWORT) der Deploy-Start unnötig
+    # riskiert würde, nur weil dieser eine, nicht sicherheitskritische Wert
+    # fehlt.
+    oeffentliche_basis_url: str | None = None
+
     # Session-Cookie nur über HTTPS versenden (OWASP Session Management).
     # Default False, damit lokales `uvicorn --reload` über http://
     # weiterhin funktioniert (Browser verwerfen Secure-Cookies ohne TLS

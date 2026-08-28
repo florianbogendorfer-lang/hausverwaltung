@@ -218,6 +218,22 @@ def _anreichern_und_entwerfen(
         zweck=f"{dienstleister.name} ({einordnung.gewerk.value}) mit der Behebung beauftragen",
         kontext=kontext,
     )
+    # Link zum Terminportal deterministisch anhängen statt dem LLM-Entwurf
+    # zu überlassen — der Dienstleister bestätigt den Termin damit
+    # strukturiert über ein Formular statt per Freitext-Mail-Antwort, die
+    # der Agent sonst unzuverlässig parsen müsste. Ohne konfigurierte
+    # öffentliche Basis-URL (lokale Entwicklung, oder Betreiber hat sie
+    # noch nicht gesetzt) lässt der Agent den Link einfach weg — der
+    # Operator sieht das im Freigabe-Entwurf und kann die Beauftragung
+    # trotzdem wie bisher per Mail-Text abwickeln.
+    if settings.oeffentliche_basis_url:
+        entwurf.inhalt += (
+            "\n\nBitte bestätigen Sie den Termin über unser Terminportal:\n"
+            f"{settings.oeffentliche_basis_url}/dienstleister-portal/{fall.dienstleister_zugriffstoken}"
+        )
+        session.add(entwurf)
+        session.commit()
+        session.refresh(entwurf)
     trace.log(
         TracePhase.tool_result,
         f"Entwurf erstellt (Nachricht #{entwurf.id}, Status={entwurf.status.value}).",

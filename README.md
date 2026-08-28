@@ -255,6 +255,21 @@ Siehe `backend/app/agent/`:
 - `mail_adapter.py` — austauschbarer Versandkanal (§16 Phase 6), Default
   simuliert
 
+### Dienstleister-Terminportal
+
+Statt den vom Dienstleister vorgeschlagenen Termin aus einer Freitext-
+Mail-Antwort herausparsen zu müssen (fehleranfällig, nicht zuverlässig
+strukturiert), enthält die Beauftragungsmail — sofern `HV_OEFFENTLICHE_BASIS_URL`
+konfiguriert ist — einen Link zu einem eigenen, login-freien Portal
+(`/dienstleister-portal/{token}`, `backend/app/routers/dienstleister_portal.py`
++ `frontend/src/pages/DienstleisterPortal.tsx`). Dort bestätigt der
+Dienstleister den Termin über ein Formular (Fall wechselt
+`DIENSTLEISTER_BEAUFTRAGT` → `TERMIN_BESTAETIGT`) und meldet später die
+Erledigung (`TERMIN_BESTAETIGT` → `ARBEIT_ERLEDIGT`). Eigenes
+Zugriffs-Token (`Fall.dienstleister_zugriffstoken`, 192 Bit Entropie),
+getrennt vom Kunden-`zugriffstoken` — beide Parteien sehen unterschiedliche
+Ausschnitte desselben Falls und dürfen unterschiedliche Aktionen auslösen.
+
 ## Web-GUI — Kanban-Board statt getrennter Listen
 
 Die ursprüngliche UI (Phase 4) hatte vier lose verbundene Seiten
@@ -331,7 +346,13 @@ kollidieren, wenn beides aus demselben Origin kommt.
    idempotent ist) oder gleich eigene Werte setzen.
    `HV_COOKIE_SECURE` setzt `docker-entrypoint.sh` im Deploy-Pfad bereits
    automatisch auf `true` (TLS-Terminierung durch Clever Cloud), das muss
-   normalerweise nicht manuell gesetzt werden.
+   normalerweise nicht manuell gesetzt werden. Ebenfalls empfohlen:
+   `HV_OEFFENTLICHE_BASIS_URL` (z. B. `https://hv.example.com`, ohne
+   abschließenden Slash) — ohne diese Variable lässt der Agent den Link
+   zum Dienstleister-Terminportal (`/dienstleister-portal/{token}`, login-
+   frei) in der Beauftragungsmail einfach weg; der Dienstleister müsste
+   den Termin dann wie bisher per Mail-Antwort zurückmelden, die niemand
+   automatisch auswertet.
 4. `PORT` wird von Clever Cloud automatisch injiziert, der Container
    bindet daran (`docker-entrypoint.sh`, Fallback `8080` für lokale Tests).
 5. Deploy auslösen — beim Containerstart laufen die Alembic-Migrationen

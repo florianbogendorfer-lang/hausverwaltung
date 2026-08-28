@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import "./index.css";
 import Benutzer from "./pages/Benutzer.tsx";
 import Board from "./pages/Board.tsx";
+import DienstleisterPortal from "./pages/DienstleisterPortal.tsx";
 import FallDetail from "./pages/FallDetail.tsx";
 import Login from "./pages/Login.tsx";
 import NichtGefunden from "./pages/NichtGefunden.tsx";
@@ -23,6 +24,7 @@ createRoot(document.getElementById("root")!).render(
             {/* Öffentliche Kundenansicht — bewusst außerhalb von <App />, ohne
                 die interne Operator-Navigation und ohne Login. */}
             <Route path="ticket/:zugriffstoken" element={<Ticket />} />
+            <Route path="dienstleister-portal/:zugriffstoken" element={<DienstleisterPortal />} />
             <Route path="login" element={<Login />} />
             <Route element={<App />}>
               <Route index element={<Board />} />

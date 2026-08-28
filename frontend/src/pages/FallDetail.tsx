@@ -161,6 +161,20 @@ export default function FallDetail() {
             >
               {fall.ticket_nummer}
             </a>
+            {fall.dienstleister_id && (
+              <>
+                {" · "}
+                <a
+                  href={`/dienstleister-portal/${fall.dienstleister_zugriffstoken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-indigo-600 hover:underline"
+                  title="Dienstleister-Terminportal in neuem Tab öffnen"
+                >
+                  Terminportal
+                </a>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -186,6 +200,7 @@ export default function FallDetail() {
       <HandlungsanweisungBanner
         status={fall.status}
         eskalationsgrund={eskalationsgrund}
+        terminAm={fall.termin_am}
         fallId={fall.id}
         onEskaliert={laden}
       />
@@ -308,11 +323,13 @@ const BANNER_STYLE: Record<string, string> = {
 function HandlungsanweisungBanner({
   status,
   eskalationsgrund,
+  terminAm,
   fallId,
   onEskaliert,
 }: {
   status: FallStatus;
   eskalationsgrund: string | null;
+  terminAm?: string | null;
   fallId: number;
   onEskaliert: () => void | Promise<void>;
 }) {
@@ -322,7 +339,9 @@ function HandlungsanweisungBanner({
   const anzeigeText =
     status === "ESKALIERT" && grundOhneEndpunkt
       ? `Eskaliert — ${grundOhneEndpunkt}. Bitte manuell übernehmen.`
-      : text;
+      : status === "TERMIN_BESTAETIGT" && terminAm
+        ? `${text} Termin: ${alsUtcDatum(terminAm).toLocaleString("de-AT")}.`
+        : text;
 
   // Notausstieg für Fälle, die scheinbar "hängen" — der Agent-Loop läuft
   // synchron in der Request, die den Fall angelegt hat, und wird bei
