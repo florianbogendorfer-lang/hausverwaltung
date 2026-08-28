@@ -32,6 +32,21 @@ jobs:
       # tests/fakes.py) — braucht keine API-Keys/Secrets.
       - run: pytest -q
       - run: ruff check .
+      # CVE-Scan gegen die tatsächlich installierten Versionen. Ignorierte
+      # IDs sind geprüft und als für diese App nicht anwendbar dokumentiert
+      # (siehe Sicherheitshinweis in app/agent/vector_store.py) — betreffen
+      # ausschließlich den optionalen, hier nie gestarteten Chroma-Server
+      # bzw. dessen RBAC-Provider, bzw. (setuptools) einen macOS-spezifischen
+      # Build-Zeit-Bug, der uns auf Linux/CI nicht betrifft. Jede NEUE,
+      # nicht ignorierte CVE lässt den Job bewusst fehlschlagen.
+      - run: |
+          pip install pip-audit
+          python -m pip_audit \
+            --ignore-vuln PYSEC-2026-311 \
+            --ignore-vuln CVE-2026-45830 \
+            --ignore-vuln CVE-2026-45831 \
+            --ignore-vuln CVE-2026-45833 \
+            --ignore-vuln PYSEC-2026-3447
 
   frontend:
     runs-on: ubuntu-latest
@@ -50,3 +65,4 @@ jobs:
       - run: npx tsc -b --noEmit
       - run: npx oxlint
       - run: npm run build
+      - run: npm audit
