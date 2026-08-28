@@ -169,6 +169,7 @@ export default function FallDetail() {
                 navigate("/");
               }}
               title="Fall löschen (nur Admin)"
+              aria-label="Fall löschen"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
             >
               <Trash2 size={16} />

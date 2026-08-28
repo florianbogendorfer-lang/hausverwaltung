@@ -96,6 +96,7 @@ export default function BenutzerVerwaltung() {
                       <button
                         onClick={() => loeschen(b.id)}
                         title="Benutzer löschen"
+                        aria-label={`Benutzer ${b.name} löschen`}
                         className="text-slate-400 transition-colors hover:text-rose-600"
                       >
                         <Trash2 size={15} />
