@@ -67,4 +67,32 @@ describe("PasswortAendernDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
     expect(onGeschlossen).toHaveBeenCalledTimes(1);
   });
+
+  it("meldet andere Geräte ab und zeigt die Anzahl beendeter Sitzungen", async () => {
+    postMock.mockResolvedValue({ beendet: 2 });
+    render(<PasswortAendernDialog onGeschlossen={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Andere Geräte abmelden/ }));
+
+    expect(await screen.findByText("2 andere Sitzungen beendet.")).toBeInTheDocument();
+    expect(postMock).toHaveBeenCalledWith("/auth/sitzungen/andere-beenden");
+  });
+
+  it("zeigt einen Hinweis, wenn keine anderen Geräte angemeldet waren", async () => {
+    postMock.mockResolvedValue({ beendet: 0 });
+    render(<PasswortAendernDialog onGeschlossen={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Andere Geräte abmelden/ }));
+
+    expect(await screen.findByText("Keine weiteren angemeldeten Geräte gefunden.")).toBeInTheDocument();
+  });
+
+  it("zeigt eine Fehlermeldung, wenn das Abmelden anderer Geräte fehlschlägt", async () => {
+    postMock.mockRejectedValue(new ApiFehler("Nicht angemeldet", 401));
+    render(<PasswortAendernDialog onGeschlossen={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Andere Geräte abmelden/ }));
+
+    expect(await screen.findByText("Nicht angemeldet")).toBeInTheDocument();
+  });
 });

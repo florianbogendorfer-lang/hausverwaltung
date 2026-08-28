@@ -1,4 +1,4 @@
-import { KeyRound, X } from "lucide-react";
+import { KeyRound, LogOut, X } from "lucide-react";
 import { useState } from "react";
 import { api, ApiFehler } from "../api";
 
@@ -8,6 +8,10 @@ import { api, ApiFehler } from "../api";
 // Passwort verifiziert und bei Erfolg alle anderen Sessions des Kontos
 // beendet. Bewusst im Header statt auf der (admin-only) Benutzer-Seite, da
 // jeder Benutzer sein eigenes Passwort ändern können muss.
+//
+// Zusätzlich (OWASP Session Management Cheat Sheet): "Andere Geräte
+// abmelden" ohne Passwortänderung — z. B. nach dem Verdacht, ein Gerät
+// unbeaufsichtigt eingeloggt gelassen zu haben.
 
 export function PasswortAendernDialog({ onGeschlossen }: { onGeschlossen: () => void }) {
   const [aktuellesPasswort, setAktuellesPasswort] = useState("");
@@ -15,6 +19,9 @@ export function PasswortAendernDialog({ onGeschlossen }: { onGeschlossen: () => 
   const [wirdGeaendert, setWirdGeaendert] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [erfolg, setErfolg] = useState(false);
+  const [wirdAbgemeldet, setWirdAbgemeldet] = useState(false);
+  const [abmeldenErgebnis, setAbmeldenErgebnis] = useState<string | null>(null);
+  const [abmeldenFehler, setAbmeldenFehler] = useState<string | null>(null);
 
   async function absenden(e: React.FormEvent) {
     e.preventDefault();
@@ -32,6 +39,26 @@ export function PasswortAendernDialog({ onGeschlossen }: { onGeschlossen: () => 
       setFehler(e instanceof ApiFehler ? e.message : "Passwort konnte nicht geändert werden.");
     } finally {
       setWirdGeaendert(false);
+    }
+  }
+
+  async function andereGeraeteAbmelden() {
+    setWirdAbgemeldet(true);
+    setAbmeldenFehler(null);
+    setAbmeldenErgebnis(null);
+    try {
+      const ergebnis = await api.post<{ beendet: number }>("/auth/sitzungen/andere-beenden");
+      setAbmeldenErgebnis(
+        ergebnis.beendet === 0
+          ? "Keine weiteren angemeldeten Geräte gefunden."
+          : `${ergebnis.beendet} andere Sitzung${ergebnis.beendet === 1 ? "" : "en"} beendet.`,
+      );
+    } catch (e) {
+      setAbmeldenFehler(
+        e instanceof ApiFehler ? e.message : "Andere Geräte konnten nicht abgemeldet werden.",
+      );
+    } finally {
+      setWirdAbgemeldet(false);
     }
   }
 
@@ -119,6 +146,26 @@ export function PasswortAendernDialog({ onGeschlossen }: { onGeschlossen: () => 
             </button>
           </form>
         )}
+
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <p className="text-xs text-slate-500">
+            Gerät verloren oder unbeaufsichtigt eingeloggt gelassen? Alle anderen angemeldeten
+            Geräte/Tabs sofort abmelden, ohne das Passwort zu ändern.
+          </p>
+          <button
+            onClick={andereGeraeteAbmelden}
+            disabled={wirdAbgemeldet}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            <LogOut size={13} /> Andere Geräte abmelden
+          </button>
+          {abmeldenErgebnis && <p className="mt-2 text-xs text-emerald-700">{abmeldenErgebnis}</p>}
+          {abmeldenFehler && (
+            <p role="alert" className="mt-2 text-xs text-rose-600">
+              {abmeldenFehler}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

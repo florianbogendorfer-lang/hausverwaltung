@@ -2,12 +2,13 @@
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
-from sqlmodel import Session, delete
+from sqlmodel import Session
 
 from app.audit_log import audit
 from app.auth import (
     PASSWORT_MIN_LAENGE,
     aktueller_benutzer,
+    andere_sitzungen_beenden,
     login_pruefen,
     passwort_byte_laenge_pruefen,
     passwort_hashen,
@@ -16,7 +17,7 @@ from app.auth import (
     sitzung_beenden,
 )
 from app.db import get_session
-from app.models import Benutzer, BenutzerRolle, Sitzung
+from app.models import Benutzer, BenutzerRolle
 from app.rate_limit import ip_rate_limit
 from app.validators import email_gueltig_pruefen
 
@@ -126,15 +127,26 @@ def passwort_aendern(
 
     benutzer.passwort_hash = passwort_hashen(eingabe.neues_passwort)
     session.add(benutzer)
+    session.commit()
 
     # Alle anderen Sessions dieses Kontos beenden (OWASP Session Management:
     # eine Passwortänderung soll jeden anderen, potenziell kompromittierten
     # Zugriff sofort beenden) — nur die aktuelle Session bleibt bestehen,
     # damit der Nutzer nicht sich selbst aussperrt.
-    bedingung = Sitzung.benutzer_id == benutzer.id
-    if hv_session is not None:
-        bedingung = bedingung & (Sitzung.token != hv_session)
-    session.exec(delete(Sitzung).where(bedingung))
-
-    session.commit()
+    andere_sitzungen_beenden(session, benutzer.id, hv_session)
     audit("passwort_geaendert", email=benutzer.email)
+
+
+@router.post("/sitzungen/andere-beenden")
+def sitzungen_andere_beenden(
+    benutzer: Benutzer = Depends(aktueller_benutzer),
+    session: Session = Depends(get_session),
+    hv_session: str | None = Cookie(default=None),
+) -> dict[str, int]:
+    """OWASP Session Management Cheat Sheet: Nutzer sollen aktive Sessions
+    beenden können, ohne dafür ihr Passwort ändern zu müssen (z. B. nach
+    Verdacht auf ein unbeaufsichtigtes, noch eingeloggtes Gerät). Die
+    aktuelle Session bleibt bestehen."""
+    beendet = andere_sitzungen_beenden(session, benutzer.id, hv_session)
+    audit("andere_sitzungen_beendet", email=benutzer.email, anzahl=beendet)
+    return {"beendet": beendet}

@@ -163,6 +163,20 @@ def sitzung_anlegen(session: Session, benutzer: Benutzer, response: Response) ->
     return sitzung
 
 
+def andere_sitzungen_beenden(session: Session, benutzer_id: int, aktuelles_token: str | None) -> int:
+    """Beendet alle Sessions eines Kontos außer der aktuellen — genutzt bei
+    Passwortänderung (app/routers/auth.py::passwort_aendern) und beim
+    expliziten "andere Geräte abmelden" (app/routers/auth.py::andere_sitzungen_beenden).
+    Gibt die Zahl der beendeten Sessions zurück (für die Audit-Log-Meldung
+    und die Antwort an den Client)."""
+    bedingung = Sitzung.benutzer_id == benutzer_id
+    if aktuelles_token is not None:
+        bedingung = bedingung & (Sitzung.token != aktuelles_token)
+    ergebnis = session.exec(delete(Sitzung).where(bedingung))
+    session.commit()
+    return ergebnis.rowcount
+
+
 def sitzung_beenden(session: Session, token: str | None, response: Response) -> None:
     if token:
         sitzung = session.get(Sitzung, token)
