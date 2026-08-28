@@ -15,12 +15,20 @@ Deployment-Kontext), ein Prozess-lokaler Zustand reicht daher aus.
 
 import threading
 import time
-from collections import defaultdict
 
 from fastapi import HTTPException, Request
 
 _LOCK = threading.Lock()
-_VERSUCHE: dict[str, list[float]] = defaultdict(list)
+_VERSUCHE: dict[str, list[float]] = {}
+
+# Harte Obergrenze für die Zahl gleichzeitig verfolgter IPs — ohne sie
+# würde der Dict in einem lang laufenden Prozess unbegrenzt wachsen (jede
+# je gesehene IP bliebe als Schlüssel bestehen, auch nach Ablauf ihres
+# Fensters) und wäre außerdem selbst ein Speicher-DoS-Vektor, falls viele
+# verschiedene (X-Forwarded-For-)Absender in kurzer Zeit auftauchen. Ein
+# harter Reset bei Überschreiten ist für einen Rate-Limiter (der nur
+# bremsen, nicht buchhalten muss) ein vertretbarer Kompromiss.
+_MAX_VERFOLGTE_IPS = 10_000
 
 
 def _client_ip(request: Request) -> str:
@@ -35,14 +43,18 @@ def ip_rate_limit(max_versuche: int, fenster_sekunden: float):
         ip = _client_ip(request)
         jetzt = time.monotonic()
         with _LOCK:
-            versuche = _VERSUCHE[ip]
-            versuche[:] = [t for t in versuche if jetzt - t < fenster_sekunden]
+            if len(_VERSUCHE) >= _MAX_VERFOLGTE_IPS and ip not in _VERSUCHE:
+                _VERSUCHE.clear()
+
+            versuche = [t for t in _VERSUCHE.get(ip, []) if jetzt - t < fenster_sekunden]
             if len(versuche) >= max_versuche:
+                _VERSUCHE[ip] = versuche
                 raise HTTPException(
                     status_code=429,
                     detail="Zu viele Versuche — bitte kurz warten.",
                     headers={"Retry-After": str(int(fenster_sekunden))},
                 )
             versuche.append(jetzt)
+            _VERSUCHE[ip] = versuche
 
     return _pruefen
