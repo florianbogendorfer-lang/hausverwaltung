@@ -95,7 +95,7 @@ Trotzdem im Auge behalten und aktualisieren, sobald Patches erscheinen
 — und diesen eingebetteten Modus nicht durch einen `chroma run`-Server
 oder eine RBAC-Konfiguration ersetzen, solange die Lücken offen sind.
 
-**Phase 6 — Mail-Adapter-Architektur (bewusst weiter simuliert):**
+**Phase 6 — Mail-Adapter-Architektur:**
 `app/agent/mail_adapter.py` formalisiert den ausgehenden Kanal als
 austauschbare `MailAdapter`-Schnittstelle — dieselbe Dependency-Injection
 wie bei `ModelRouter`/`DokumentenIndex`. `freigabe_service.freigeben` kennt
@@ -107,10 +107,25 @@ explizit gesetzt wird (`get_mail_adapter()` wählt danach, analog zum
 `HV_ANTHROPIC_API_KEY`-Umschalter). Ohne SMTP-Konfiguration ändert sich am
 Verhalten nichts. Ein `NachrichtStatus.gesendet` (echt) ergänzt das
 bisherige `gesendet_simuliert`, damit das Audit-Log (§11) im Zweifel
-erkennen lässt, ob wirklich etwas rausging. Der eingehende Kanal
-(simuliertes Postfach, `POST /api/postfach/eingang`) hatte seine
-Austauschstelle bereits seit Phase 2 — echter IMAP-Eingang und weitere
-Anliegen-Typen bleiben offen für einen späteren Durchgang.
+erkennen lässt, ob wirklich etwas rausging.
+
+Der eingehende Kanal war seit Phase 2 nur simuliert (`POST
+/api/postfach/eingang`) — Sorge dabei: Kommunikation, die außerhalb dieser
+manuellen Einspielung passiert (z. B. eine Antwort direkt im echten
+Postfach des Bearbeiters), taucht im System nie auf und "verschwindet"
+faktisch. `app/agent/imap_adapter.py` + `POST /api/postfach/abrufen`
+schließen diese Lücke mit einem echten, per `HV_IMAP_HOST` (+
+`HV_IMAP_PORT`/`HV_IMAP_BENUTZER`/`HV_IMAP_PASSWORT`/`HV_IMAP_ORDNER`,
+gleiches Muster wie SMTP) konfigurierbaren IMAP-Abruf: jede ungelesene
+Mail landet entweder — falls der Betreff eine bekannte Ticketnummer
+enthält (z. B. eine Dienstleister-Antwort) — als neue Nachricht am
+bestehenden Fall, oder wird (wie bislang die simulierte Einspielung) über
+den vollen Agent-Loop zu einem neuen Fall. Bewusst manuell auslösbar
+(Button "Postfach abrufen" auf der Postfach-Seite) statt über einen
+Hintergrund-Scheduler — kein zusätzlicher Infrastruktur-Prozess nötig, ein
+Klick reicht für einen ersten Testlauf. Ohne `HV_IMAP_HOST` bleibt der
+Endpunkt schlicht nicht verfügbar (404), am bisherigen Verhalten ändert
+sich nichts. HTML-Mails/Anhänge werden (noch) nicht ausgewertet.
 
 ### Setup — Backend
 
@@ -355,7 +370,11 @@ kollidieren, wenn beides aus demselben Origin kommt.
    statt später kryptisch beim ersten Mail-Eingang). Ebenfalls optional:
    `HV_SMTP_HOST`/`HV_SMTP_PORT`/`HV_SMTP_BENUTZER`/`HV_SMTP_PASSWORT`/
    `HV_SMTP_ABSENDER` für echten Mailversand (§16 Phase 6) — ohne diese
-   Variablen bleibt der Versand vollständig simuliert. **Dringend
+   Variablen bleibt der Versand vollständig simuliert. Ebenso optional:
+   `HV_IMAP_HOST`/`HV_IMAP_PORT`/`HV_IMAP_BENUTZER`/`HV_IMAP_PASSWORT`/
+   `HV_IMAP_ORDNER` für den echten Postfach-Abruf (Button „Postfach
+   abrufen" auf der Postfach-Seite, siehe oben) — ohne `HV_IMAP_HOST`
+   bleibt nur die simulierte Einspielung verfügbar. **Dringend
    empfohlen, sobald `HV_COOKIE_SECURE` aktiv ist** (siehe unten):
    `HV_SEED_ADMIN_PASSWORT`/`HV_SEED_USER_PASSWORT` auf starke, zufällige
    Werte setzen (siehe [Nutzer/Login](#nutzer-und-login)) — fehlen sie,

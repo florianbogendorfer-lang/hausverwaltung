@@ -82,6 +82,17 @@ class Settings(BaseSettings):
     smtp_passwort: str | None = None
     smtp_absender: str | None = None
 
+    # Echter eingehender Kanal (Gegenstück zu smtp_*) — bewusst ebenfalls
+    # per Default deaktiviert (§2.2/§0), aktiv erst wenn imap_host gesetzt
+    # ist (app/agent/imap_adapter.py, app/routers/postfach.py::POST
+    # /postfach/abrufen). Ohne Konfiguration bleibt die simulierte
+    # Einspielung über /postfach/eingang der einzige Weg, Fälle anzulegen.
+    imap_host: str | None = None
+    imap_port: int = 993
+    imap_benutzer: str | None = None
+    imap_passwort: str | None = None
+    imap_ordner: str = "INBOX"
+
     # Öffentliche Basis-URL des Deployments (z. B. "https://hv.example.com",
     # ohne abschließenden Slash) — wird gebraucht, um in Mails an
     # Dienstleister einen anklickbaren Link zum Terminportal

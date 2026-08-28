@@ -1,9 +1,9 @@
-import { AlertCircle, KeyRound, Send, Wrench, X } from "lucide-react";
+import { AlertCircle, Inbox, KeyRound, Send, Wrench, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiFehler } from "../api";
 import { NachrichtStatusBadge } from "../components/StatusBadge";
-import type { Fall, Nachricht } from "../types";
+import type { Fall, Nachricht, PostfachAbrufErgebnis } from "../types";
 
 // Sicherheitsnetz für den Agent-Loop (läuft synchron in dieser Request):
 // das Backend hat inzwischen ein eigenes, kürzeres Timeout für den
@@ -122,6 +122,32 @@ export default function Postfach() {
     abbruchRef.current?.abort();
   }
 
+  const [ruftAb, setRuftAb] = useState(false);
+  const [abrufErgebnis, setAbrufErgebnis] = useState<PostfachAbrufErgebnis | null>(null);
+  const [abrufFehler, setAbrufFehler] = useState<string | null>(null);
+  const [imapNichtKonfiguriert, setImapNichtKonfiguriert] = useState(false);
+
+  async function echtesPostfachAbrufen() {
+    setRuftAb(true);
+    setAbrufFehler(null);
+    setAbrufErgebnis(null);
+    try {
+      const ergebnis = await api.post<PostfachAbrufErgebnis>("/postfach/abrufen");
+      setAbrufErgebnis(ergebnis);
+      if (ergebnis.neue_faelle > 0 || ergebnis.zugeordnete_antworten > 0) {
+        await outboxLaden();
+      }
+    } catch (e) {
+      if (e instanceof ApiFehler && e.status === 404) {
+        setImapNichtKonfiguriert(true);
+      } else {
+        setAbrufFehler(e instanceof ApiFehler ? e.message : "Postfach-Abruf fehlgeschlagen.");
+      }
+    } finally {
+      setRuftAb(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -131,6 +157,48 @@ export default function Postfach() {
         <p className="mt-1 text-sm text-slate-500">
           Simulierter Mail-Eingang — kein echter Versand, nichts verlässt das System ungesehen.
         </p>
+      </div>
+
+      <div className="mb-8 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <Inbox size={15} /> Echtes Postfach
+            </h3>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Ruft ein per HV_IMAP_* konfiguriertes Postfach ab — neue Mails legen einen Fall an,
+              Antworten mit bekannter Ticketnummer im Betreff landen im jeweiligen Fall.
+            </p>
+          </div>
+          <button
+            onClick={echtesPostfachAbrufen}
+            disabled={ruftAb}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Inbox size={15} /> {ruftAb ? "Ruft ab…" : "Postfach abrufen"}
+          </button>
+        </div>
+        {imapNichtKonfiguriert && (
+          <p className="text-sm text-slate-400">
+            Kein echtes Postfach konfiguriert — HV_IMAP_HOST (und HV_IMAP_BENUTZER/
+            HV_IMAP_PASSWORT) sind nicht gesetzt.
+          </p>
+        )}
+        {abrufFehler && (
+          <p role="alert" className="text-sm text-rose-600">
+            {abrufFehler}
+          </p>
+        )}
+        {abrufErgebnis && (
+          <p className="text-sm text-emerald-700">
+            {abrufErgebnis.neue_faelle} neue{abrufErgebnis.neue_faelle === 1 ? "r" : ""} Fall
+            {abrufErgebnis.neue_faelle === 1 ? "" : "e"}, {abrufErgebnis.zugeordnete_antworten}{" "}
+            Antwort{abrufErgebnis.zugeordnete_antworten === 1 ? "" : "en"} zugeordnet
+            {abrufErgebnis.uebersprungene_mails > 0 &&
+              `, ${abrufErgebnis.uebersprungene_mails} übersprungen (ungültiger Absender)`}
+            .
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">

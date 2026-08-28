@@ -28,7 +28,7 @@ export type NachrichtStatus =
 export type TracePhase = "wahrnehmung" | "plan" | "tool_call" | "tool_result" | "entscheidung" | "reasoning";
 export type Aktionstyp = "nachricht_senden" | "dienstleister_beauftragen" | "rechnung_erfassen";
 export type FreigabeStatus = "offen" | "freigegeben" | "bearbeitet_freigegeben" | "abgelehnt";
-export type Akteur = "agent" | "operator" | "system";
+export type Akteur = "agent" | "operator" | "system" | "dienstleister";
 export type BenutzerRolle = "admin" | "user";
 
 export interface Benutzer {
@@ -105,6 +105,12 @@ export interface Nachricht {
   inhalt: string;
   status: NachrichtStatus;
   erstellt_am: string;
+}
+
+export interface PostfachAbrufErgebnis {
+  neue_faelle: number;
+  zugeordnete_antworten: number;
+  uebersprungene_mails: number;
 }
 
 export interface Trace {
