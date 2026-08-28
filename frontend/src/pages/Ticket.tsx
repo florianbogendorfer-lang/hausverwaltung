@@ -36,7 +36,10 @@ export default function Ticket() {
 
       <main className="mx-auto max-w-2xl px-6 py-10">
         {fehler && (
-          <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+          >
             <AlertCircle size={18} className="mt-0.5 shrink-0" />
             <p>{fehler}</p>
           </div>

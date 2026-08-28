@@ -63,7 +63,9 @@ export default function BenutzerVerwaltung() {
       </p>
 
       {fehler && (
-        <p className="mt-4 rounded-lg bg-rose-50 px-4 py-2.5 text-sm text-rose-700">{fehler}</p>
+        <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
+          {fehler}
+        </p>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">

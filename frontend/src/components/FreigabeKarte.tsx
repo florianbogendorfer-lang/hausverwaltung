@@ -215,7 +215,11 @@ export function FreigabeKarte({
             </p>
           )}
 
-          {aktionsFehler && <p className="mb-3 text-sm text-rose-600">{aktionsFehler}</p>}
+          {aktionsFehler && (
+            <p role="alert" className="mb-3 text-sm text-rose-600">
+              {aktionsFehler}
+            </p>
+          )}
 
           {freigabe.status === "offen" && (
             <div className="flex flex-col gap-3 border-t border-slate-100 pt-3">

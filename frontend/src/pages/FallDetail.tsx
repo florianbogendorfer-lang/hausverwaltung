@@ -125,7 +125,12 @@ export default function FallDetail() {
     return typeof grund === "string" ? grund : null;
   }, [aktionen]);
 
-  if (fehler) return <p className="text-rose-600">{fehler}</p>;
+  if (fehler)
+    return (
+      <p role="alert" className="text-rose-600">
+        {fehler}
+      </p>
+    );
   if (!fall) return <p className="text-slate-400">Lädt…</p>;
 
   return (
@@ -485,7 +490,11 @@ function ManuelleZuordnung({
             </button>
           )}
         </div>
-        {fehler && <p className="mt-2 text-sm text-rose-600">{fehler}</p>}
+        {fehler && (
+          <p role="alert" className="mt-2 text-sm text-rose-600">
+            {fehler}
+          </p>
+        )}
       </div>
     );
   }
@@ -579,7 +588,11 @@ function ManuelleZuordnung({
           <X size={14} /> Abbrechen
         </button>
       </div>
-      {fehler && <p className="mt-2 text-sm text-rose-600">{fehler}</p>}
+      {fehler && (
+          <p role="alert" className="mt-2 text-sm text-rose-600">
+            {fehler}
+          </p>
+        )}
     </div>
   );
 }

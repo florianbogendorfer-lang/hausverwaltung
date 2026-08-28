@@ -67,7 +67,11 @@ export default function Login() {
             />
           </label>
 
-          {fehler && <p className="text-sm text-rose-600">{fehler}</p>}
+          {fehler && (
+            <p role="alert" className="text-sm text-rose-600">
+              {fehler}
+            </p>
+          )}
 
           <button
             type="submit"

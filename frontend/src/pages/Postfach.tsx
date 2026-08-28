@@ -177,7 +177,11 @@ export default function Postfach() {
                 className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </label>
-            {fehler && <p className="text-sm text-rose-600">{fehler}</p>}
+            {fehler && (
+              <p role="alert" className="text-sm text-rose-600">
+                {fehler}
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={einspielen}
