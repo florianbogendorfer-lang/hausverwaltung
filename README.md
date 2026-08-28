@@ -212,6 +212,7 @@ bereits vorab gebacken (siehe `Dockerfile`).
 cd backend && ruff check .          # Pyflakes + Pycodestyle-Kernregeln
 cd frontend && npx oxlint           # React-/TS-Lint
 cd frontend && npx tsc -b --noEmit  # TypeScript strict mode
+cd frontend && npm test             # Vitest — reine Logik (z. B. api.ts-Fehlerbehandlung)
 
 # CVE-Scan gegen die tatsächlich installierten Versionen (nicht nur
 # gegen die Versionsbereiche in pyproject.toml/package-lock.json) —
