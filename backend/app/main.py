@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from app.auth import aktueller_benutzer
+from app.config import settings
 from app.db import create_db_and_tables, engine
 from app.models import Dokument
 from app.routers import (
@@ -95,6 +96,12 @@ async def sicherheits_header_setzen(request: Request, call_next):
         "font-src 'self' https://fonts.gstatic.com; "
         "frame-ancestors 'none'; base-uri 'self'"
     )
+    # HSTS nur wenn wir wissen, dass wir hinter TLS laufen (cookie_secure
+    # wird von docker-entrypoint.sh im Deploy-Pfad automatisch gesetzt) —
+    # sonst würde ein lokaler http://-Dev-Server Browsern fälschlich
+    # "immer HTTPS erzwingen" beibringen.
+    if settings.cookie_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     return response
 
 
