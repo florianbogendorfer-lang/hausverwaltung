@@ -48,6 +48,47 @@ jobs:
             --ignore-vuln CVE-2026-45833 \
             --ignore-vuln PYSEC-2026-3447
 
+  migrationen:
+    # Die eigentlichen Tests laufen gegen SQLite (SQLModel.create_all, kein
+    # Alembic) — die Alembic-Migrationskette selbst (der tatsächliche
+    # Schema-Weg im Deploy, siehe docker-entrypoint.sh: `alembic upgrade
+    # head` gegen Postgres) wurde bisher nirgends automatisch geprüft. Ein
+    # Postgres-inkompatibles Migrations-Statement wäre erst beim echten
+    # Clever-Cloud-Deploy aufgefallen. Dieser Job spielt die komplette Kette
+    # gegen einen echten Postgres-Service, dann `python -m app.seed`
+    # (läuft bei jedem Deploy-Start ebenfalls unconditional mit).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hv
+          POSTGRES_PASSWORD: hv
+          POSTGRES_DB: hv
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      HV_DATABASE_URL: postgresql+psycopg://hv:hv@localhost:5432/hv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: alembic upgrade head
+      - run: python -m app.seed
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15

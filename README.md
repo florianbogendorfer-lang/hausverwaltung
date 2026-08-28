@@ -223,8 +223,14 @@ cd frontend && npm audit
 ```
 
 `.github/workflows/ci.yml` führt Tests, Linter und den Produktions-Build
-bei jedem Push/PR automatisch aus (Backend- und Frontend-Job parallel,
-netzwerkfrei, keine Secrets nötig). `.github/dependabot.yml` öffnet
+bei jedem Push/PR automatisch aus (Backend-, Frontend- und Migrations-Job
+parallel). Backend/Frontend-Jobs sind netzwerkfrei und brauchen keine
+Secrets; der Migrations-Job spielt die komplette Alembic-Kette (`alembic
+upgrade head`, dann `python -m app.seed`) gegen einen echten
+Postgres-Service-Container — die Tests selbst laufen gegen SQLite
+(`SQLModel.create_all`, kein Alembic), ohne diesen Job wäre ein
+Postgres-inkompatibles Migrations-Statement erst beim echten
+Clever-Cloud-Deploy aufgefallen. `.github/dependabot.yml` öffnet
 wöchentlich Update-PRs für pip/npm/Docker/GitHub-Actions-Abhängigkeiten
 innerhalb der in `backend/pyproject.toml` gesetzten Versions-Obergrenzen
 — jeder davon läuft automatisch durch dieselbe CI.
