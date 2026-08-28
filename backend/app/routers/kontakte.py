@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -11,10 +11,11 @@ router = APIRouter(prefix="/kontakte", tags=["kontakte"])
 
 
 class KontaktEingabe(BaseModel):
-    name: str
+    # Obergrenzen nach OWASP Input Validation Cheat Sheet.
+    name: str = Field(max_length=200)
     rolle: KontaktRolle
-    email: str
-    telefon: Optional[str] = None
+    email: str = Field(max_length=320)
+    telefon: Optional[str] = Field(default=None, max_length=50)
     objekt_id: Optional[int] = None
 
 

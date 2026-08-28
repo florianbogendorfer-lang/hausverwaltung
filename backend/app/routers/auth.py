@@ -1,7 +1,7 @@
 """Login/Logout/aktueller Benutzer (§0: einfaches Passwort-Login)."""
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.auth import aktueller_benutzer, login_pruefen, sitzung_anlegen, sitzung_beenden
@@ -27,8 +27,12 @@ login_rate_limiter = ip_rate_limit(max_versuche=20, fenster_sekunden=300)
 
 
 class LoginEingabe(BaseModel):
-    email: str
-    passwort: str
+    # Obergrenzen (OWASP Input Validation Cheat Sheet) — bcrypt truncated
+    # Eingaben >72 Byte ohnehin intern, ein unbegrenzt langes Passwort
+    # würde davor aber trotzdem unnötig Zeit zum Verarbeiten/Hashen des
+    # Klartexts selbst kosten.
+    email: str = Field(max_length=320)
+    passwort: str = Field(max_length=128)
 
 
 class BenutzerAntwort(BaseModel):

@@ -19,8 +19,8 @@ PASSWORT_MIN_LAENGE = 15
 
 
 class BenutzerEingabe(BaseModel):
-    name: str
-    email: str
+    name: str = Field(max_length=200)
+    email: str = Field(max_length=320)
     passwort: str = Field(min_length=PASSWORT_MIN_LAENGE, max_length=128)
     rolle: BenutzerRolle = BenutzerRolle.user
 

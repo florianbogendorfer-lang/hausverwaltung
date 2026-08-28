@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -11,10 +11,11 @@ router = APIRouter(prefix="/objekte", tags=["objekte"])
 
 
 class ObjektEingabe(BaseModel):
-    bezeichnung: str
-    adresse: str
-    einheit: Optional[str] = None
-    notizen: Optional[str] = None
+    # Obergrenzen nach OWASP Input Validation Cheat Sheet.
+    bezeichnung: str = Field(max_length=200)
+    adresse: str = Field(max_length=300)
+    einheit: Optional[str] = Field(default=None, max_length=100)
+    notizen: Optional[str] = Field(default=None, max_length=2_000)
 
 
 @router.get("", response_model=list[Objekt])
