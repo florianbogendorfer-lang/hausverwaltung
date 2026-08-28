@@ -95,10 +95,19 @@ def objekt_suchen(session: Session, suchbegriff: str):
 
 
 def kontakt_suchen(session: Session, suchbegriff: str) -> Optional[Kontakt]:
-    """Melder identifizieren (per Name oder E-Mail)."""
-    muster = f"%{suchbegriff}%"
+    """Melder identifizieren (per Name oder E-Mail). `suchbegriff` stammt aus
+    der LLM-Extraktion einer externen Mail — kein SQL-Injection-Risiko (der
+    Wert wird als gebundener Parameter übergeben), aber ohne Escaping würden
+    LIKE-Sonderzeichen (% und _), die zufällig im Namen/der Mailadresse
+    vorkommen, die Suchsemantik verfälschen (z. B. würde "50% Rabatt" als
+    Suchbegriff zu einem beliebige-Zeichen-Platzhalter statt eines
+    Literalzeichens)."""
+    escaped = suchbegriff.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    muster = f"%{escaped}%"
     return session.exec(
-        select(Kontakt).where((Kontakt.name.like(muster)) | (Kontakt.email.like(muster)))
+        select(Kontakt).where(
+            (Kontakt.name.like(muster, escape="\\")) | (Kontakt.email.like(muster, escape="\\"))
+        )
     ).first()
 
 
