@@ -108,9 +108,9 @@ function ObjektePflege() {
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Neues Objekt</h3>
-        <Feld label="Bezeichnung" value={formular.bezeichnung} onChange={(v) => setFormular({ ...formular, bezeichnung: v })} />
-        <Feld label="Adresse" value={formular.adresse} onChange={(v) => setFormular({ ...formular, adresse: v })} />
-        <Feld label="Einheit" value={formular.einheit} onChange={(v) => setFormular({ ...formular, einheit: v })} />
+        <Feld label="Bezeichnung" value={formular.bezeichnung} onChange={(v) => setFormular({ ...formular, bezeichnung: v })} maxLength={200} />
+        <Feld label="Adresse" value={formular.adresse} onChange={(v) => setFormular({ ...formular, adresse: v })} maxLength={300} />
+        <Feld label="Einheit" value={formular.einheit} onChange={(v) => setFormular({ ...formular, einheit: v })} maxLength={100} />
         {fehler && <p className="text-sm text-rose-600">{fehler}</p>}
         <button
           onClick={anlegen}
@@ -191,7 +191,7 @@ function KontaktePflege() {
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Neuer Kontakt</h3>
-        <Feld label="Name" value={formular.name} onChange={(v) => setFormular({ ...formular, name: v })} />
+        <Feld label="Name" value={formular.name} onChange={(v) => setFormular({ ...formular, name: v })} maxLength={200} />
         <label className="text-sm">
           <span className="mb-1 block font-medium text-slate-600">Rolle</span>
           <select
@@ -203,7 +203,7 @@ function KontaktePflege() {
             <option value="eigentümer">Eigentümer</option>
           </select>
         </label>
-        <Feld label="E-Mail" value={formular.email} onChange={(v) => setFormular({ ...formular, email: v })} />
+        <Feld label="E-Mail" value={formular.email} onChange={(v) => setFormular({ ...formular, email: v })} maxLength={320} />
         {fehler && <p className="text-sm text-rose-600">{fehler}</p>}
         <button
           onClick={anlegen}
@@ -285,7 +285,7 @@ function DienstleisterPflege() {
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700">Neuer Dienstleister</h3>
-        <Feld label="Name" value={formular.name} onChange={(v) => setFormular({ ...formular, name: v })} />
+        <Feld label="Name" value={formular.name} onChange={(v) => setFormular({ ...formular, name: v })} maxLength={200} />
         <label className="text-sm">
           <span className="mb-1 block font-medium text-slate-600">Gewerk</span>
           <select
@@ -300,7 +300,7 @@ function DienstleisterPflege() {
             <option value="sonstiges">Sonstiges</option>
           </select>
         </label>
-        <Feld label="E-Mail" value={formular.email} onChange={(v) => setFormular({ ...formular, email: v })} />
+        <Feld label="E-Mail" value={formular.email} onChange={(v) => setFormular({ ...formular, email: v })} maxLength={320} />
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <input
             type="checkbox"
@@ -322,13 +322,27 @@ function DienstleisterPflege() {
   );
 }
 
-function Feld({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Feld({
+  label,
+  value,
+  onChange,
+  maxLength,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  // Spiegelt die Field(max_length=...)-Grenzen der Backend-Eingabemodelle
+  // (OWASP Input Validation Cheat Sheet) — ohne das erfährt der Bearbeiter
+  // erst nach dem Absenden per 422, dass der Wert zu lang ist.
+  maxLength?: number;
+}) {
   return (
     <label className="text-sm">
       <span className="mb-1 block font-medium text-slate-600">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        maxLength={maxLength}
         className="w-full rounded-lg border border-slate-300 px-3 py-1.5 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
       />
     </label>
