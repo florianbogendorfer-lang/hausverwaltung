@@ -12,6 +12,26 @@ export class ApiFehler extends Error {
   }
 }
 
+// FastAPI liefert bei Validierungsfehlern (422) `detail` NICHT als
+// String, sondern als Liste strukturierter Fehlerobjekte
+// ({loc, msg, type, ...}) — ohne diese Umwandlung würde ApiFehler.message
+// (ein Array) beim Rendern zu unbrauchbarem Text wie
+// "[object Object],[object Object]" statt einer lesbaren Meldung.
+function _detailAlsText(detail: unknown): string | undefined {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const nachrichten = detail
+      .map((eintrag) =>
+        eintrag && typeof eintrag === "object" && "msg" in eintrag
+          ? String((eintrag as { msg: unknown }).msg)
+          : null,
+      )
+      .filter((m): m is string => m !== null);
+    if (nachrichten.length > 0) return nachrichten.join("; ");
+  }
+  return undefined;
+}
+
 async function anfrage<T>(pfad: string, optionen?: RequestInit): Promise<T> {
   const antwort = await fetch(`${API_BASE}${pfad}`, {
     headers: { "Content-Type": "application/json" },
@@ -25,7 +45,7 @@ async function anfrage<T>(pfad: string, optionen?: RequestInit): Promise<T> {
     let detail = antwort.statusText;
     try {
       const body = await antwort.json();
-      detail = body.detail ?? detail;
+      detail = _detailAlsText(body.detail) ?? detail;
     } catch {
       // kein JSON-Body — Statustext genügt
     }
