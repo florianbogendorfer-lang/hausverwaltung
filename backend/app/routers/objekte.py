@@ -20,7 +20,9 @@ class ObjektEingabe(BaseModel):
 
 @router.get("", response_model=list[Objekt])
 def liste_objekte(session: Session = Depends(get_session)) -> list[Objekt]:
-    return list(session.exec(select(Objekt)).all())
+    # Deterministische Reihenfolge — siehe Begründung bei liste_faelle
+    # (app/routers/faelle.py).
+    return list(session.exec(select(Objekt).order_by(Objekt.bezeichnung)).all())
 
 
 @router.get("/{objekt_id}", response_model=Objekt)

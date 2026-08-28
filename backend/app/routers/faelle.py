@@ -39,7 +39,15 @@ class FallManuelleZuordnung(BaseModel):
 
 @router.get("", response_model=list[Fall])
 def liste_faelle(session: Session = Depends(get_session)) -> list[Fall]:
-    return list(session.exec(select(Fall).where(Fall.geloescht.is_(False))).all())
+    # Explizite Reihenfolge: ohne ORDER BY garantiert SQL keine bestimmte
+    # Zeilenreihenfolge (Postgres/Prod kann sie sogar zwischen Abfragen
+    # ändern) — das Kanban-Board (frontend/src/pages/Board.tsx) sortiert
+    # selbst nicht, verlässt sich also direkt auf diese Reihenfolge.
+    return list(
+        session.exec(
+            select(Fall).where(Fall.geloescht.is_(False)).order_by(Fall.erstellt_am)
+        ).all()
+    )
 
 
 @router.get("/{fall_id}", response_model=Fall)

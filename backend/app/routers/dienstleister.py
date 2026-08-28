@@ -28,7 +28,9 @@ def liste_dienstleister(
     query = select(Dienstleister)
     if gewerk is not None:
         query = query.where(Dienstleister.gewerk == gewerk)
-    return list(session.exec(query).all())
+    # Deterministische Reihenfolge — siehe Begründung bei liste_faelle
+    # (app/routers/faelle.py).
+    return list(session.exec(query.order_by(Dienstleister.name)).all())
 
 
 @router.get("/{dienstleister_id}", response_model=Dienstleister)

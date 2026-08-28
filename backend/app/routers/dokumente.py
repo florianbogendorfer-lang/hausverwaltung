@@ -9,7 +9,9 @@ router = APIRouter(prefix="/dokumente", tags=["dokumente"])
 
 @router.get("", response_model=list[Dokument])
 def liste_dokumente(session: Session = Depends(get_session)) -> list[Dokument]:
-    return list(session.exec(select(Dokument)).all())
+    # Deterministische Reihenfolge — siehe Begründung bei liste_faelle
+    # (app/routers/faelle.py).
+    return list(session.exec(select(Dokument).order_by(Dokument.id)).all())
 
 
 @router.get("/{dokument_id}", response_model=Dokument)

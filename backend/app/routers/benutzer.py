@@ -38,7 +38,9 @@ def _ausgabe(benutzer: Benutzer) -> BenutzerAusgabe:
 
 @router.get("", response_model=list[BenutzerAusgabe])
 def liste(session: Session = Depends(get_session)) -> list[BenutzerAusgabe]:
-    return [_ausgabe(b) for b in session.exec(select(Benutzer)).all()]
+    # Deterministische Reihenfolge — siehe Begründung bei liste_faelle
+    # (app/routers/faelle.py).
+    return [_ausgabe(b) for b in session.exec(select(Benutzer).order_by(Benutzer.name)).all()]
 
 
 @router.post("", response_model=BenutzerAusgabe, status_code=201)

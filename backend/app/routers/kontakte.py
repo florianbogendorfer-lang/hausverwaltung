@@ -21,7 +21,9 @@ class KontaktEingabe(BaseModel):
 
 @router.get("", response_model=list[Kontakt])
 def liste_kontakte(session: Session = Depends(get_session)) -> list[Kontakt]:
-    return list(session.exec(select(Kontakt)).all())
+    # Deterministische Reihenfolge — siehe Begründung bei liste_faelle
+    # (app/routers/faelle.py).
+    return list(session.exec(select(Kontakt).order_by(Kontakt.name)).all())
 
 
 @router.get("/{kontakt_id}", response_model=Kontakt)
