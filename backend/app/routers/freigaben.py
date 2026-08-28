@@ -5,7 +5,7 @@ bedienbar, FR-HITL-4/5)."""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.agent.freigabe_service import FreigabeBereitsEntschieden, ablehnen, freigeben, ist_ueberfaellig
@@ -56,11 +56,14 @@ class FreigabeAnsicht(BaseModel):
 
 
 class FreigebenRequest(BaseModel):
-    bearbeiteter_text: Optional[str] = None
+    # Obergrenze wie bei EingehendeMail (OWASP Input Validation Cheat
+    # Sheet) — auch für authentifizierte Endpunkte gilt: jede Eingabe
+    # sollte begrenzt sein, nicht erst die öffentlich erreichbaren.
+    bearbeiteter_text: Optional[str] = Field(default=None, max_length=20_000)
 
 
 class AblehnenRequest(BaseModel):
-    grund: str
+    grund: str = Field(max_length=2_000)
 
 
 def _get_freigabe_oder_404(session: Session, freigabe_id: int) -> Freigabe:
