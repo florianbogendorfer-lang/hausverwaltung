@@ -1,10 +1,16 @@
 """Login/Logout/aktueller Benutzer (§0: einfaches Passwort-Login)."""
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session
 
-from app.auth import aktueller_benutzer, login_pruefen, sitzung_anlegen, sitzung_beenden
+from app.auth import (
+    aktueller_benutzer,
+    login_pruefen,
+    passwort_byte_laenge_pruefen,
+    sitzung_anlegen,
+    sitzung_beenden,
+)
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle
 from app.rate_limit import ip_rate_limit
@@ -27,12 +33,16 @@ login_rate_limiter = ip_rate_limit(max_versuche=20, fenster_sekunden=300)
 
 
 class LoginEingabe(BaseModel):
-    # Obergrenzen (OWASP Input Validation Cheat Sheet) — bcrypt truncated
-    # Eingaben >72 Byte ohnehin intern, ein unbegrenzt langes Passwort
-    # würde davor aber trotzdem unnötig Zeit zum Verarbeiten/Hashen des
-    # Klartexts selbst kosten.
+    # Obergrenzen (OWASP Input Validation Cheat Sheet) gegen unnötig teure
+    # Verarbeitung. bcrypt>=5.0 wirft für Passwörter >72 Bytes ein
+    # ValueError statt (wie <5.0) stillschweigend abzuschneiden — die
+    # explizite Byte-Prüfung unten wandelt das in einen sauberen
+    # Validierungsfehler statt eines unbehandelten 500ers (siehe
+    # app/auth.py::passwort_byte_laenge_pruefen).
     email: str = Field(max_length=320)
     passwort: str = Field(max_length=128)
+
+    _passwort_byte_laenge = field_validator("passwort")(passwort_byte_laenge_pruefen)
 
 
 class BenutzerAntwort(BaseModel):

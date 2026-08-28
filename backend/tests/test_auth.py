@@ -152,6 +152,35 @@ def test_benutzer_anlegen_lehnt_kurzes_passwort_ab(echter_login_client: TestClie
     assert response.status_code == 422
 
 
+def test_benutzer_anlegen_lehnt_passwort_ueber_72_bytes_ab(echter_login_client: TestClient):
+    """bcrypt>=5.0 wirft für Passwörter >72 Bytes ein ValueError statt (wie
+    <5.0) stillschweigend abzuschneiden — ohne die Byte-Prüfung in
+    app.auth.passwort_byte_laenge_pruefen würde das hier zu einem
+    unbehandelten 500er statt eines sauberen 422ers führen. 100 ASCII-
+    Zeichen sind unter max_length=128 (Zeichen) gültig, aber 100 Bytes."""
+    echter_login_client.post(
+        "/api/auth/login", json={"email": "admin@example.test", "passwort": "admin123"}
+    )
+    response = echter_login_client.post(
+        "/api/benutzer",
+        json={
+            "name": "Zu langes Passwort",
+            "email": "zu-lang@example.test",
+            "passwort": "a" * 100,
+            "rolle": "user",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_login_lehnt_passwort_ueber_72_bytes_ab_statt_500(echter_login_client: TestClient):
+    response = echter_login_client.post(
+        "/api/auth/login",
+        json={"email": "admin@example.test", "passwort": "a" * 100},
+    )
+    assert response.status_code == 422
+
+
 def test_login_sperrt_konto_nach_mehreren_fehlversuchen(echter_login_client: TestClient):
     """Brute-Force-Schutz: eigenes Wegwerf-Konto, damit admin@/user@
     für die übrigen Tests unangetastet bleiben."""

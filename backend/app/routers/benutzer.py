@@ -2,10 +2,10 @@
 Löschen weiterer Konten)."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
-from app.auth import admin_erforderlich, passwort_hashen
+from app.auth import admin_erforderlich, passwort_byte_laenge_pruefen, passwort_hashen
 from app.db import get_session
 from app.models import Benutzer, BenutzerRolle, Sitzung
 
@@ -23,6 +23,8 @@ class BenutzerEingabe(BaseModel):
     email: str = Field(max_length=320)
     passwort: str = Field(min_length=PASSWORT_MIN_LAENGE, max_length=128)
     rolle: BenutzerRolle = BenutzerRolle.user
+
+    _passwort_byte_laenge = field_validator("passwort")(passwort_byte_laenge_pruefen)
 
 
 class BenutzerAusgabe(BaseModel):

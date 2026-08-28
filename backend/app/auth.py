@@ -33,6 +33,25 @@ SITZUNGSDAUER = timedelta(days=7)
 FEHLVERSUCHE_SCHWELLE = 5
 MAX_SPERRDAUER = timedelta(hours=1)
 
+# bcrypt hat ein Hardlimit von 72 Bytes (nicht Zeichen!) pro Passwort. Bis
+# Version 5.0 wurde darüber hinaus stillschweigend abgeschnitten, seit 5.0
+# wirft `bcrypt.hashpw`/`checkpw` stattdessen ein ValueError — ein
+# Passwort-Feld mit `max_length=128` (Zeichen) lässt also weiterhin Eingaben
+# zu, die den Server mit einem unbehandelten 500er abstürzen lassen (z. B.
+# 100 ASCII-Zeichen, oder schon deutlich weniger bei Mehrbyte-UTF-8 wie
+# Emojis/Umlauten). Diese Prüfung läuft VOR jedem bcrypt-Aufruf und liefert
+# stattdessen eine saubere Validierungsfehlermeldung.
+PASSWORT_MAX_BYTES = 72
+
+
+def passwort_byte_laenge_pruefen(klartext: str) -> str:
+    if len(klartext.encode("utf-8")) > PASSWORT_MAX_BYTES:
+        raise ValueError(
+            f"Passwort darf höchstens {PASSWORT_MAX_BYTES} Bytes lang sein (UTF-8-kodiert) "
+            "— bcrypts Hardlimit"
+        )
+    return klartext
+
 # Fixer, gültiger bcrypt-Hash für den Vergleich bei unbekannter E-Mail —
 # ein Klartext, den niemand als echtes Passwort verwendet. Einmal beim
 # Modul-Import berechnet (nicht pro Request), damit nur der eigentliche
