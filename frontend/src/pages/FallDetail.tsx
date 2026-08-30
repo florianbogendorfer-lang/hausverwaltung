@@ -13,13 +13,14 @@ import {
   PlayCircle,
   Receipt,
   Sparkles,
+  Tag,
   Trash2,
   UserRound,
   Wrench,
   X,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { API_BASE, api } from "../api";
 import { useAuth } from "../auth";
@@ -463,6 +464,33 @@ function InfoKarte({
   );
 }
 
+// Bearbeiten-Variante von InfoKarte: gleiche Karte (Icon, Titel, Rahmen),
+// aber mit einem <select> statt einer statischen Werte-Zeile — die
+// Bearbeitungsansicht der manuellen Zuordnung soll optisch nicht wie ein
+// eigenständiges Formular wirken, sondern wie dieselben Karten, nur mit
+// editierbarem Inhalt.
+function InfoKarteAuswahl({
+  icon: Icon,
+  titel,
+  children,
+}: {
+  icon: typeof Building2;
+  titel: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <Icon size={15} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ManuelleZuordnung({
   fall,
   objekt,
@@ -599,12 +627,9 @@ function ManuelleZuordnung({
   }
 
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Objekt
-          </span>
+    <div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <InfoKarteAuswahl icon={Building2} titel="Objekt">
           <select
             value={objektId}
             onChange={(e) => setObjektId(e.target.value)}
@@ -617,11 +642,8 @@ function ManuelleZuordnung({
               </option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Melder
-          </span>
+        </InfoKarteAuswahl>
+        <InfoKarteAuswahl icon={UserRound} titel="Melder">
           <select
             value={kontaktId}
             onChange={(e) => setKontaktId(e.target.value)}
@@ -634,11 +656,8 @@ function ManuelleZuordnung({
               </option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Dienstleister
-          </span>
+        </InfoKarteAuswahl>
+        <InfoKarteAuswahl icon={Wrench} titel="Dienstleister">
           <select
             value={dienstleisterId}
             onChange={(e) => setDienstleisterId(e.target.value)}
@@ -652,11 +671,8 @@ function ManuelleZuordnung({
               </option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Gewerk
-          </span>
+        </InfoKarteAuswahl>
+        <InfoKarteAuswahl icon={Tag} titel="Gewerk">
           <select
             value={gewerk}
             onChange={(e) => setGewerk(e.target.value)}
@@ -669,9 +685,9 @@ function ManuelleZuordnung({
               </option>
             ))}
           </select>
-        </label>
+        </InfoKarteAuswahl>
       </div>
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2">
         <button
           onClick={speichern}
           disabled={wirdGespeichert}
