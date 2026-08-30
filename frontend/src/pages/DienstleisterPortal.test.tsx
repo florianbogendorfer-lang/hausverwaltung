@@ -4,10 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DienstleisterPortalAnsicht } from "../types";
 import DienstleisterPortal from "./DienstleisterPortal";
 
-const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
+const { getMock, postMock, postFormMock } = vi.hoisted(() => ({
+  getMock: vi.fn(),
+  postMock: vi.fn(),
+  postFormMock: vi.fn(),
+}));
 vi.mock("../api", async () => {
   const echtesModul = await vi.importActual<typeof import("../api")>("../api");
-  return { ...echtesModul, api: { ...echtesModul.api, get: getMock, post: postMock } };
+  return {
+    ...echtesModul,
+    api: { ...echtesModul.api, get: getMock, post: postMock, postForm: postFormMock },
+  };
 });
 
 function rendern(token = "test-token") {
@@ -31,12 +38,14 @@ const BASIS_ANSICHT: DienstleisterPortalAnsicht = {
   termin_am: null,
   rechnung_betrag: null,
   rechnung_nummer: null,
+  rechnungsbeleg_vorhanden: false,
 };
 
 describe("DienstleisterPortal", () => {
   beforeEach(() => {
     getMock.mockReset();
     postMock.mockReset();
+    postFormMock.mockReset();
   });
 
   afterEach(() => {
@@ -116,7 +125,7 @@ describe("DienstleisterPortal", () => {
       rechnung_betrag: 249.5,
       rechnung_nummer: "RE-2026-042",
     });
-    postMock.mockResolvedValue(undefined);
+    postFormMock.mockResolvedValue(undefined);
     rendern("mein-token");
 
     await screen.findByRole("button", { name: /Rechnung einreichen/ });
@@ -124,13 +133,34 @@ describe("DienstleisterPortal", () => {
     fireEvent.change(screen.getByLabelText(/Rechnungsnummer/), { target: { value: "RE-2026-042" } });
     fireEvent.click(screen.getByRole("button", { name: /Rechnung einreichen/ }));
 
-    await waitFor(() =>
-      expect(postMock).toHaveBeenCalledWith("/dienstleister-portal/mein-token/rechnung", {
-        betrag: 249.5,
-        rechnungsnummer: "RE-2026-042",
-      }),
-    );
+    await waitFor(() => expect(postFormMock).toHaveBeenCalledTimes(1));
+    const aufruf = postFormMock.mock.calls[0]!;
+    const [pfad, formular] = aufruf;
+    expect(pfad).toBe("/dienstleister-portal/mein-token/rechnung");
+    expect(formular).toBeInstanceOf(FormData);
+    expect((formular as FormData).get("betrag")).toBe("249.50");
+    expect((formular as FormData).get("rechnungsnummer")).toBe("RE-2026-042");
     expect(await screen.findByText(/Hausverwaltung wurde informiert/)).toBeInTheDocument();
+  });
+
+  it("hängt die ausgewählte Beleg-Datei an das Formular an", async () => {
+    getMock.mockResolvedValueOnce({ ...BASIS_ANSICHT, status: "ARBEIT_ERLEDIGT" }).mockResolvedValueOnce({
+      ...BASIS_ANSICHT,
+      status: "RECHNUNG_ERFASST",
+      rechnungsbeleg_vorhanden: true,
+    });
+    postFormMock.mockResolvedValue(undefined);
+    rendern("mein-token");
+
+    await screen.findByRole("button", { name: /Rechnung einreichen/ });
+    fireEvent.change(screen.getByLabelText(/Rechnungsbetrag/), { target: { value: "50" } });
+    const datei = new File(["%PDF-1.4"], "rechnung.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText(/Rechnungsbeleg/), { target: { files: [datei] } });
+    fireEvent.click(screen.getByRole("button", { name: /Rechnung einreichen/ }));
+
+    await waitFor(() => expect(postFormMock).toHaveBeenCalledTimes(1));
+    const formular = postFormMock.mock.calls[0]![1] as FormData;
+    expect((formular.get("beleg") as File).name).toBe("rechnung.pdf");
   });
 
   it("zeigt keine Formulare mehr, wenn die Rechnung bereits erfasst ist", async () => {

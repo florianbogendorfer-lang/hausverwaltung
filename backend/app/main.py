@@ -27,7 +27,7 @@ from sqlmodel import Session, select
 from app.auth import aktueller_benutzer
 from app.config import settings
 from app.db import create_db_and_tables, engine, get_session
-from app.models import Dokument
+from app.models import Dokument, MAX_BELEG_GROESSE_BYTES
 from app.observability import init_sentry, log_unbehandelte_ausnahme, neue_request_id, request_id_var
 from app.routers import (
     auth,
@@ -88,9 +88,11 @@ app.add_middleware(
 # beliebig viel Arbeitsspeicher/Bandbreite verbrauchen, bevor Pydantic die
 # einzelnen Feld-Obergrenzen (max_length, siehe Router) überhaupt zu sehen
 # bekommt — die greifen erst NACH dem vollständigen Einlesen/Parsen des
-# Bodies. 1 MB ist großzügig für die größte erwartete Nutzlast (Mailtext
-# max. 20.000 Zeichen, siehe app/agent/schemas.py).
-_MAX_BODY_BYTES = 1 * 1024 * 1024
+# Bodies. Auf MAX_BELEG_GROESSE_BYTES abgestimmt (größte erwartete
+# Nutzlast: ein hochgeladener Rechnungsbeleg, siehe
+# app/models/rechnungsbeleg.py) — für alle anderen Endpunkte (Mailtext
+# max. 20.000 Zeichen, siehe app/agent/schemas.py) weiterhin großzügig.
+_MAX_BODY_BYTES = MAX_BELEG_GROESSE_BYTES
 
 
 class KoerpergroesseBegrenzenMiddleware:

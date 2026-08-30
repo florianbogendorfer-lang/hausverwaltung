@@ -164,6 +164,7 @@ export interface DienstleisterPortalAnsicht {
   termin_am: string | null;
   rechnung_betrag: number | null;
   rechnung_nummer: string | null;
+  rechnungsbeleg_vorhanden: boolean;
 }
 
 export interface Freigabe {

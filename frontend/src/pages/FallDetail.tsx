@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
-import { api } from "../api";
+import { API_BASE, api } from "../api";
 import { useAuth } from "../auth";
 import { FreigabeKarte } from "../components/FreigabeKarte";
 import { FallStatusBadge, NachrichtStatusBadge } from "../components/StatusBadge";
@@ -133,6 +133,15 @@ export default function FallDetail() {
     return typeof grund === "string" ? grund : null;
   }, [aktionen]);
 
+  // Kein eigener Fall.rechnungsbeleg_vorhanden-Feld auf dem Fall selbst
+  // nötig — steht bereits im details-Objekt der beim Rechnung-Einreichen
+  // erzeugten Aktion (siehe app/routers/dienstleister_portal.py), die wir
+  // für die Timeline ohnehin laden.
+  const belegVorhanden = useMemo(
+    () => aktionen.some((a) => a.aktionsart === "fall:rechnung_erfasst" && a.details?.beleg_hochgeladen === true),
+    [aktionen],
+  );
+
   if (fehler)
     return (
       <p role="alert" className="text-rose-600">
@@ -235,6 +244,7 @@ export default function FallDetail() {
           alleObjekte={alleObjekte}
           alleKontakte={alleKontakte}
           alleDienstleister={alleDienstleister}
+          belegVorhanden={belegVorhanden}
           onGespeichert={laden}
         />
         {fall.zusammenfassung && (
@@ -461,6 +471,7 @@ function ManuelleZuordnung({
   alleObjekte,
   alleKontakte,
   alleDienstleister,
+  belegVorhanden,
   onGespeichert,
 }: {
   fall: Fall;
@@ -470,6 +481,7 @@ function ManuelleZuordnung({
   alleObjekte: Objekt[];
   alleKontakte: Kontakt[];
   alleDienstleister: Dienstleister[];
+  belegVorhanden: boolean;
   onGespeichert: () => void | Promise<void>;
 }) {
   const [bearbeiten, setBearbeiten] = useState(false);
@@ -557,6 +569,16 @@ function ManuelleZuordnung({
           >
             <Pencil size={14} /> Manuell zuordnen
           </button>
+          {belegVorhanden && (
+            <a
+              href={`${API_BASE}/faelle/${fall.id}/rechnungsbeleg`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              <Receipt size={14} /> Rechnungsbeleg herunterladen
+            </a>
+          )}
           {fall.status === "ESKALIERT" && (
             <button
               onClick={wiederAufnehmen}

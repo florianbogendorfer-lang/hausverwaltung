@@ -9,13 +9,22 @@ app.models.fall), NICHT über die kurze `ticket_nummer`."""
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 
 from app.agent.tools import log_aktion
 from app.db import get_session
-from app.models import Akteur, Fall, FallStatus, Kontakt, Objekt
+from app.models import (
+    ERLAUBTE_BELEG_CONTENT_TYPES,
+    MAX_BELEG_GROESSE_BYTES,
+    Akteur,
+    Fall,
+    FallStatus,
+    Kontakt,
+    Objekt,
+    Rechnungsbeleg,
+)
 from app.rate_limit import ip_rate_limit
 
 # Wie /ticket/{zugriffstoken}: unauthentifiziert und öffentlich erreichbar,
@@ -58,6 +67,10 @@ class DienstleisterPortalAnsicht(BaseModel):
     termin_am: datetime | None
     rechnung_betrag: float | None
     rechnung_nummer: str | None
+    # Nur ob ein Beleg existiert, nicht der Inhalt selbst — die Bytes
+    # gehören nicht in die JSON-Ansicht, siehe eigener Download-Endpunkt
+    # GET /api/faelle/{fall_id}/rechnungsbeleg (app/routers/faelle.py).
+    rechnungsbeleg_vorhanden: bool
 
 
 class TerminEingabe(BaseModel):
@@ -77,25 +90,19 @@ class TerminEingabe(BaseModel):
         return wert
 
 
-class RechnungEingabe(BaseModel):
-    betrag: float
-    rechnungsnummer: str | None = None
+def _betrag_pruefen(betrag: float) -> None:
+    if betrag <= 0:
+        raise HTTPException(status_code=422, detail="Der Rechnungsbetrag muss größer als 0 sein.")
+    if betrag > 1_000_000:
+        raise HTTPException(status_code=422, detail="Der Rechnungsbetrag ist unplausibel hoch.")
 
-    @field_validator("betrag")
-    @classmethod
-    def _betrag_plausibel(cls, wert: float) -> float:
-        if wert <= 0:
-            raise ValueError("Der Rechnungsbetrag muss größer als 0 sein.")
-        if wert > 1_000_000:
-            raise ValueError("Der Rechnungsbetrag ist unplausibel hoch.")
-        return wert
 
-    @field_validator("rechnungsnummer")
-    @classmethod
-    def _rechnungsnummer_laenge_pruefen(cls, wert: str | None) -> str | None:
-        if wert is not None and len(wert) > 100:
-            raise ValueError("Die Rechnungsnummer ist zu lang (max. 100 Zeichen).")
-        return wert or None
+def _rechnungsnummer_normalisieren(rechnungsnummer: str | None) -> str | None:
+    if rechnungsnummer is not None and len(rechnungsnummer) > 100:
+        raise HTTPException(
+            status_code=422, detail="Die Rechnungsnummer ist zu lang (max. 100 Zeichen)."
+        )
+    return rechnungsnummer or None
 
 
 def _fall_laden(session: Session, zugriffstoken: str) -> Fall:
@@ -119,6 +126,10 @@ def _ansicht(session: Session, fall: Fall) -> DienstleisterPortalAnsicht:
         termin_am=fall.termin_am,
         rechnung_betrag=fall.rechnung_betrag,
         rechnung_nummer=fall.rechnung_nummer,
+        rechnungsbeleg_vorhanden=session.exec(
+            select(Rechnungsbeleg.id).where(Rechnungsbeleg.fall_id == fall.id)
+        ).first()
+        is not None,
     )
 
 
@@ -200,13 +211,23 @@ def als_erledigt_melden(
     response_model=DienstleisterPortalAnsicht,
     dependencies=[Depends(dienstleister_portal_rate_limiter)],
 )
-def rechnung_einreichen(
-    zugriffstoken: str, eingabe: RechnungEingabe, session: Session = Depends(get_session)
+async def rechnung_einreichen(
+    zugriffstoken: str,
+    betrag: float = Form(...),
+    rechnungsnummer: str | None = Form(None),
+    beleg: UploadFile | None = File(None),
+    session: Session = Depends(get_session),
 ) -> DienstleisterPortalAnsicht:
     # Letzter Schritt des Dienstleisters im Portal — strukturierte Eingabe
     # statt Rechnung per Freitext-Mail-Anhang, aus denselben Gründen wie
     # Termin/Erledigt-Meldung (siehe Modul-Docstring). Erst danach kann der
     # Bearbeiter den Fall im Operator-UI abschließen (app/routers/faelle.py).
+    # multipart/form-data statt JSON, damit derselbe Request optional den
+    # Rechnungsbeleg (PDF/Foto) mitschicken kann — FastAPI erlaubt keine
+    # Mischung aus JSON-Body und File-Upload in einem Endpunkt.
+    _betrag_pruefen(betrag)
+    rechnungsnummer = _rechnungsnummer_normalisieren(rechnungsnummer)
+
     fall = _fall_laden(session, zugriffstoken)
     if fall.status != FallStatus.arbeit_erledigt:
         raise HTTPException(
@@ -214,8 +235,43 @@ def rechnung_einreichen(
             detail="Für diesen Fall kann aktuell keine Rechnung eingereicht werden.",
         )
 
-    fall.rechnung_betrag = eingabe.betrag
-    fall.rechnung_nummer = eingabe.rechnungsnummer
+    # Ein leeres <input type="file"> schickt im Formular trotzdem einen
+    # UploadFile mit leerem Dateinamen/Inhalt statt gar keinem Feld — daher
+    # zusätzlich auf tatsächlichen Inhalt prüfen, nicht nur "beleg is not
+    # None". Der Beleg ist bewusst optional (manche Dienstleister haben
+    # keine separate PDF-Rechnung).
+    beleg_hochgeladen = False
+    if beleg is not None and beleg.filename:
+        inhalt = await beleg.read()
+        if inhalt:
+            if beleg.content_type not in ERLAUBTE_BELEG_CONTENT_TYPES:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Nur PDF-, JPEG- oder PNG-Dateien sind als Rechnungsbeleg erlaubt.",
+                )
+            if len(inhalt) > MAX_BELEG_GROESSE_BYTES:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Der Rechnungsbeleg ist zu groß (max. "
+                    f"{MAX_BELEG_GROESSE_BYTES // (1024 * 1024)} MB).",
+                )
+            # Steuerzeichen aus dem Dateinamen entfernen (der Wert landet
+            # später roh im Content-Disposition-Header des Download-
+            # Endpunkts, siehe app/routers/faelle.py) + Längenbegrenzung.
+            dateiname = beleg.filename.replace("\r", "").replace("\n", "")[:255]
+            session.add(
+                Rechnungsbeleg(
+                    fall_id=fall.id,
+                    dateiname=dateiname,
+                    content_type=beleg.content_type or "application/octet-stream",
+                    groesse_bytes=len(inhalt),
+                    inhalt=inhalt,
+                )
+            )
+            beleg_hochgeladen = True
+
+    fall.rechnung_betrag = betrag
+    fall.rechnung_nummer = rechnungsnummer
     fall.status = FallStatus.rechnung_erfasst
     fall.geaendert_am = datetime.utcnow()
     session.add(fall)
@@ -226,6 +282,6 @@ def rechnung_einreichen(
         fall.id,
         Akteur.dienstleister,
         "fall:rechnung_erfasst",
-        {"betrag": eingabe.betrag, "rechnungsnummer": eingabe.rechnungsnummer},
+        {"betrag": betrag, "rechnungsnummer": rechnungsnummer, "beleg_hochgeladen": beleg_hochgeladen},
     )
     return _ansicht(session, fall)

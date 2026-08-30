@@ -18,6 +18,7 @@ export default function DienstleisterPortal() {
   const [terminEingabe, setTerminEingabe] = useState("");
   const [betragEingabe, setBetragEingabe] = useState("");
   const [rechnungsnummerEingabe, setRechnungsnummerEingabe] = useState("");
+  const [belegDatei, setBelegDatei] = useState<File | null>(null);
   const [aktionFehler, setAktionFehler] = useState<string | null>(null);
   const [wirdGesendet, setWirdGesendet] = useState(false);
 
@@ -73,10 +74,11 @@ export default function DienstleisterPortal() {
     setWirdGesendet(true);
     setAktionFehler(null);
     try {
-      await api.post(`/dienstleister-portal/${zugriffstoken}/rechnung`, {
-        betrag: Number(betragEingabe.replace(",", ".")),
-        rechnungsnummer: rechnungsnummerEingabe || null,
-      });
+      const formular = new FormData();
+      formular.set("betrag", betragEingabe.replace(",", "."));
+      if (rechnungsnummerEingabe) formular.set("rechnungsnummer", rechnungsnummerEingabe);
+      if (belegDatei) formular.set("beleg", belegDatei);
+      await api.postForm(`/dienstleister-portal/${zugriffstoken}/rechnung`, formular);
       laden();
     } catch (e) {
       setAktionFehler(e instanceof ApiFehler ? e.message : "Rechnung konnte nicht eingereicht werden.");
@@ -226,6 +228,17 @@ export default function DienstleisterPortal() {
                     value={rechnungsnummerEingabe}
                     onChange={(e) => setRechnungsnummerEingabe(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Rechnungsbeleg als PDF oder Foto (optional)
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    onChange={(e) => setBelegDatei(e.target.files?.[0] ?? null)}
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-slate-600"
                   />
                 </label>
                 <button

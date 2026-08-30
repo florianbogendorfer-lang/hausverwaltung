@@ -141,13 +141,14 @@ def test_rechnung_einreichen_setzt_status_und_betrag():
 
     antwort = client.post(
         f"/api/dienstleister-portal/{token}/rechnung",
-        json={"betrag": 249.5, "rechnungsnummer": "RE-2026-042"},
+        data={"betrag": 249.5, "rechnungsnummer": "RE-2026-042"},
     )
     assert antwort.status_code == 200
     daten = antwort.json()
     assert daten["status"] == FallStatus.rechnung_erfasst.value
     assert daten["rechnung_betrag"] == 249.5
     assert daten["rechnung_nummer"] == "RE-2026-042"
+    assert daten["rechnungsbeleg_vorhanden"] is False
 
     fall_response = client.get(f"/api/faelle/{fall['id']}").json()
     assert fall_response["status"] == FallStatus.rechnung_erfasst.value
@@ -161,7 +162,7 @@ def test_rechnung_ohne_rechnungsnummer_ist_optional():
     fall = _fall_bei_arbeit_erledigt()
     token = fall["dienstleister_zugriffstoken"]
 
-    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", json={"betrag": 100})
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", data={"betrag": 100})
     assert antwort.status_code == 200
     assert antwort.json()["rechnung_nummer"] is None
 
@@ -170,7 +171,7 @@ def test_rechnung_negativer_betrag_wird_abgelehnt():
     fall = _fall_bei_arbeit_erledigt()
     token = fall["dienstleister_zugriffstoken"]
 
-    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", json={"betrag": -5})
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", data={"betrag": -5})
     assert antwort.status_code == 422
 
 
@@ -178,8 +179,90 @@ def test_rechnung_vor_erledigt_meldung_gibt_409():
     fall = _fall_bei_dienstleister_beauftragt()
     token = fall["dienstleister_zugriffstoken"]
 
-    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", json={"betrag": 100})
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", data={"betrag": 100})
     assert antwort.status_code == 409
+
+
+def test_rechnung_mit_beleg_speichert_und_meldet_ihn_als_vorhanden():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(
+        f"/api/dienstleister-portal/{token}/rechnung",
+        data={"betrag": 100},
+        files={"beleg": ("rechnung.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+    assert antwort.status_code == 200
+    assert antwort.json()["rechnungsbeleg_vorhanden"] is True
+
+    aktion = next(
+        a
+        for a in client.get(f"/api/faelle/{fall['id']}/aktionen").json()
+        if a["aktionsart"] == "fall:rechnung_erfasst"
+    )
+    assert aktion["details"]["beleg_hochgeladen"] is True
+
+
+def test_rechnung_beleg_falscher_content_type_wird_abgelehnt():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(
+        f"/api/dienstleister-portal/{token}/rechnung",
+        data={"betrag": 100},
+        files={"beleg": ("rechnung.exe", b"MZ...", "application/x-msdownload")},
+    )
+    assert antwort.status_code == 422
+
+
+def test_rechnung_beleg_zu_gross_wird_abgelehnt():
+    from app.models import MAX_BELEG_GROESSE_BYTES
+
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    zu_gross = b"0" * (MAX_BELEG_GROESSE_BYTES + 1)
+    antwort = client.post(
+        f"/api/dienstleister-portal/{token}/rechnung",
+        data={"betrag": 100},
+        files={"beleg": ("rechnung.pdf", zu_gross, "application/pdf")},
+    )
+    assert antwort.status_code in (413, 422)
+
+
+def test_rechnung_ohne_beleg_meldet_ihn_als_nicht_vorhanden():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", data={"betrag": 100})
+    assert antwort.json()["rechnungsbeleg_vorhanden"] is False
+
+
+def test_rechnungsbeleg_download_liefert_hochgeladene_datei():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+    client.post(
+        f"/api/dienstleister-portal/{token}/rechnung",
+        data={"betrag": 100},
+        files={"beleg": ("rechnung.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+
+    antwort = client.get(f"/api/faelle/{fall['id']}/rechnungsbeleg")
+    assert antwort.status_code == 200
+    assert antwort.content == b"%PDF-1.4 fake"
+    assert antwort.headers["content-type"] == "application/pdf"
+    assert "rechnung.pdf" in antwort.headers["content-disposition"]
+
+
+def test_rechnungsbeleg_download_ohne_beleg_gibt_404():
+    fall = _fall_bei_arbeit_erledigt()
+    antwort = client.get(f"/api/faelle/{fall['id']}/rechnungsbeleg")
+    assert antwort.status_code == 404
+
+
+def test_rechnungsbeleg_download_unbekannter_fall_gibt_404():
+    antwort = client.get("/api/faelle/999999/rechnungsbeleg")
+    assert antwort.status_code == 404
 
 
 def test_kunden_zugriffstoken_und_dienstleister_zugriffstoken_sind_unterschiedlich():

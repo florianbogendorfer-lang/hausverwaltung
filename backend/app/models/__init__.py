@@ -7,6 +7,11 @@ from app.models.freigabe import Aktionstyp, Freigabe, FreigabeStatus
 from app.models.kontakt import Kontakt, KontaktRolle
 from app.models.nachricht import Kanal, Nachricht, NachrichtRichtung, NachrichtStatus
 from app.models.objekt import Objekt
+from app.models.rechnungsbeleg import (
+    ERLAUBTE_BELEG_CONTENT_TYPES,
+    MAX_BELEG_GROESSE_BYTES,
+    Rechnungsbeleg,
+)
 from app.models.trace import Trace, TracePhase
 
 __all__ = [
@@ -33,4 +38,7 @@ __all__ = [
     "Trace",
     "TracePhase",
     "Dokument",
+    "Rechnungsbeleg",
+    "MAX_BELEG_GROESSE_BYTES",
+    "ERLAUBTE_BELEG_CONTENT_TYPES",
 ]

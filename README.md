@@ -298,6 +298,18 @@ Zugriffs-Token (`Fall.dienstleister_zugriffstoken`, 192 Bit Entropie),
 getrennt vom Kunden-`zugriffstoken` — beide Parteien sehen unterschiedliche
 Ausschnitte desselben Falls und dürfen unterschiedliche Aktionen auslösen.
 
+Letzter Schritt (`ARBEIT_ERLEDIGT` → `RECHNUNG_ERFASST`): Betrag,
+optional Rechnungsnummer, optional ein Rechnungsbeleg als Datei-Upload
+(PDF/JPEG/PNG, max. 8 MB, siehe
+`backend/app/models/rechnungsbeleg.py::MAX_BELEG_GROESSE_BYTES`). Die
+Datei liegt direkt als Bytes in der DB (kein persistentes Volume im
+Docker-Container, siehe Production-Readiness) und ist für eingeloggte
+Bearbeiter über `GET /api/faelle/{fall_id}/rechnungsbeleg` abrufbar
+(Link „Rechnungsbeleg herunterladen" in der Fall-Detailansicht). Danach
+entscheidet der Bearbeiter bewusst manuell über den Abschluss
+(`RECHNUNG_ERFASST`/`ARBEIT_ERLEDIGT` → `ABGESCHLOSSEN`, Button „Fall
+abschließen") — kein Automatismus, siehe `backend/app/routers/faelle.py`.
+
 Die öffentliche Basis-URL für diesen Link braucht keine manuelle
 Konfiguration: `POST /api/postfach/eingang` (`backend/app/routers/postfach.py`)
 leitet sie aus dem eingehenden Request ab (`request.base_url`) — der

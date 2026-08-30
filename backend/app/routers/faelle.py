@@ -5,7 +5,7 @@ Agent-Lauf bereits jetzt über die API nachvollziehbar, §11)."""
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -23,6 +23,7 @@ from app.models import (
     Kontakt,
     Nachricht,
     Objekt,
+    Rechnungsbeleg,
     Trace,
 )
 
@@ -192,4 +193,31 @@ def fall_nachrichten(fall_id: int, session: Session = Depends(get_session)) -> l
         session.exec(
             select(Nachricht).where(Nachricht.fall_id == fall_id).order_by(Nachricht.erstellt_am)
         ).all()
+    )
+
+
+@router.get("/{fall_id}/rechnungsbeleg")
+def rechnungsbeleg_herunterladen(fall_id: int, session: Session = Depends(get_session)) -> Response:
+    """Download des vom Dienstleister eingereichten Rechnungsbelegs (siehe
+    POST /dienstleister-portal/{token}/rechnung) — nur für eingeloggte
+    Bearbeiter (Router-weite `_angemeldet`-Dependency, app/main.py), die
+    Bytes selbst sind nie Teil der normalen JSON-Fall-Ansicht."""
+    if session.get(Fall, fall_id) is None:
+        raise HTTPException(status_code=404, detail="Fall nicht gefunden")
+    beleg = session.exec(
+        select(Rechnungsbeleg)
+        .where(Rechnungsbeleg.fall_id == fall_id)
+        .order_by(Rechnungsbeleg.hochgeladen_am.desc())
+    ).first()
+    if beleg is None:
+        raise HTTPException(status_code=404, detail="Kein Rechnungsbeleg vorhanden")
+    # Anführungszeichen aus dem Dateinamen entfernen, bevor er roh in den
+    # Content-Disposition-Header eingebettet wird (Header-Injection-Schutz;
+    # Zeilenumbrüche wurden bereits beim Upload entfernt, siehe
+    # app/routers/dienstleister_portal.py).
+    dateiname = beleg.dateiname.replace('"', "'")
+    return Response(
+        content=beleg.inhalt,
+        media_type=beleg.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{dateiname}"'},
     )

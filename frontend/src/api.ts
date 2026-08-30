@@ -1,7 +1,10 @@
 // Produktion: Frontend + Backend laufen im selben Docker-Container hinter
 // demselben Origin, API-Routen liegen unter /api (siehe backend/app/main.py).
 // Lokaler Dev-Modus überschreibt das via frontend/.env.development.
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+// Exportiert, damit z. B. FallDetail.tsx direkte Download-Links (<a href>,
+// kein fetch()) auf denselben Origin bauen kann statt die Basis-URL zu
+// duplizieren.
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export class ApiFehler extends Error {
   status: number;
@@ -72,6 +75,13 @@ export const api = {
   // abbrechbar/mit eigenem Timeout ausgestattet werden sollen.
   post: <T>(pfad: string, body?: unknown, optionen?: RequestInit) =>
     anfrage<T>(pfad, { method: "POST", body: body ? JSON.stringify(body) : undefined, ...optionen }),
+  // Für multipart/form-data-Uploads (z. B. Rechnungsbeleg): kein
+  // Content-Type-Header selbst setzen, der Browser ergänzt ihn inkl.
+  // Boundary automatisch anhand des FormData-Bodys — ein von uns gesetzter
+  // "application/json"-Header (wie beim normalen post()) würde den Server
+  // den Body falsch parsen lassen.
+  postForm: <T>(pfad: string, formData: FormData) =>
+    anfrage<T>(pfad, { method: "POST", body: formData, headers: {} }),
   put: <T>(pfad: string, body: unknown) =>
     anfrage<T>(pfad, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(pfad: string, body: unknown) =>
