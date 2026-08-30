@@ -185,6 +185,7 @@ export default function FallDetail() {
                 if (!fallId) return;
                 if (!confirm(`Fall #${fall.id} „${fall.betreff}“ wirklich löschen?`)) return;
                 await api.del(`/faelle/${fallId}`);
+                aufFallGeaendert?.();
                 navigate("/");
               }}
               title="Fall löschen (nur Admin)"
