@@ -2,6 +2,8 @@ import {
   AlertTriangle,
   Building2,
   Clock,
+  LayoutGrid,
+  List as ListIcon,
   Mail,
   ShieldAlert,
   Wrench,
@@ -10,6 +12,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import { FallStatusBadge } from "../components/StatusBadge";
 import type { Fall, FallStatus, Freigabe, Objekt } from "../types";
 import { alsUtcDatum } from "../zeit";
 
@@ -124,6 +127,17 @@ const STATUS_LABEL: Record<FallStatus, string> = {
   ABGEBROCHEN: "Abgebrochen",
 };
 
+const ANSICHT_SPEICHER_KEY = "hv-board-ansicht";
+
+function gespeicherteAnsicht(): "kanban" | "liste" {
+  try {
+    const wert = localStorage.getItem(ANSICHT_SPEICHER_KEY);
+    return wert === "liste" ? "liste" : "kanban";
+  } catch {
+    return "kanban";
+  }
+}
+
 function zeitVor(iso: string): string {
   const diffMs = Date.now() - alsUtcDatum(iso).getTime();
   const min = Math.floor(diffMs / 60000);
@@ -143,7 +157,19 @@ export default function Board() {
   const [objekte, setObjekte] = useState<Objekt[]>([]);
   const [offeneFreigaben, setOffeneFreigaben] = useState<Freigabe[]>([]);
   const [suche, setSuche] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"alle" | FallStatus>("alle");
+  const [ansicht, setAnsicht] = useState<"kanban" | "liste">(gespeicherteAnsicht);
   const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+
+  function ansichtWaehlen(neu: "kanban" | "liste") {
+    setAnsicht(neu);
+    try {
+      localStorage.setItem(ANSICHT_SPEICHER_KEY, neu);
+    } catch {
+      // Speicher nicht verfügbar (z. B. privater Modus) — Ansicht bleibt
+      // für diese Sitzung trotzdem gewechselt, nur ohne Persistenz.
+    }
+  }
 
   async function laden() {
     try {
@@ -174,15 +200,16 @@ export default function Board() {
 
   const gefiltert = useMemo(() => {
     const suchbegriff = suche.trim().toLowerCase();
-    if (!suchbegriff) return faelle;
     return faelle.filter((f) => {
+      if (statusFilter !== "alle" && f.status !== statusFilter) return false;
+      if (!suchbegriff) return true;
       const objekt = f.objekt_id ? objektNachId.get(f.objekt_id) : undefined;
       return (
         f.betreff.toLowerCase().includes(suchbegriff) ||
         objekt?.bezeichnung.toLowerCase().includes(suchbegriff)
       );
     });
-  }, [faelle, suche, objektNachId]);
+  }, [faelle, suche, statusFilter, objektNachId]);
 
   const eskaliert = gefiltert.filter((f) => f.status === "ESKALIERT");
   const panelOffen = geoeffneterFallId != null;
@@ -204,13 +231,48 @@ export default function Board() {
               Ein Fall, ein Weg — von der eingehenden Mail bis zum Abschluss.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
               placeholder="Suchen nach Betreff oder Objekt…"
               className="w-64 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "alle" | FallStatus)}
+              aria-label="Nach Status filtern"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            >
+              <option value="alle">Alle Status</option>
+              {(Object.keys(STATUS_LABEL) as FallStatus[]).map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABEL[status]}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-0.5 rounded-lg border border-slate-300 bg-white p-0.5 shadow-sm">
+              <button
+                onClick={() => ansichtWaehlen("kanban")}
+                aria-pressed={ansicht === "kanban"}
+                title="Kanban-Ansicht"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  ansicht === "kanban" ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-100"
+                }`}
+              >
+                <LayoutGrid size={15} />
+              </button>
+              <button
+                onClick={() => ansichtWaehlen("liste")}
+                aria-pressed={ansicht === "liste"}
+                title="Listen-Ansicht"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  ansicht === "liste" ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-100"
+                }`}
+              >
+                <ListIcon size={15} />
+              </button>
+            </div>
             <Link
               to="/postfach"
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
@@ -226,48 +288,16 @@ export default function Board() {
           </p>
         )}
 
-        {eskaliert.length > 0 && (
-          <div className="mb-6 rounded-xl border border-rose-300 bg-rose-50 p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-700">
-              <AlertTriangle size={16} />
-              Eskaliert — benötigt manuelle Bearbeitung ({eskaliert.length})
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {eskaliert.map((fall) => (
-                <FallKarte
-                  key={fall.id}
-                  fall={fall}
-                  objekt={fall.objekt_id ? objektNachId.get(fall.objekt_id) : undefined}
-                  offeneFreigaben={offeneFreigabenProFall.get(fall.id) ?? 0}
-                  onClick={() => navigate(`/faelle/${fall.id}`)}
-                  ausgewaehlt={fall.id === geoeffneterFallId}
-                  variante="eskaliert"
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {SPALTEN.map((spalte) => {
-            const karten = gefiltert.filter((f) => spalte.status.includes(f.status));
-            const stil = SPALTEN_STYLE[spalte.farbe];
-            return (
-              <div key={spalte.titel} className="flex min-w-0 flex-col">
-                <div className={`mb-3 rounded-lg border px-3 py-2.5 ${stil.rahmen} ${stil.hintergrund}`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-semibold ${stil.titel}`}>{spalte.titel}</span>
-                    <span
-                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${stil.badge}`}
-                    >
-                      {karten.length}
-                    </span>
-                  </div>
-                  <p className={`mt-0.5 text-xs ${stil.beschreibung}`}>{spalte.beschreibung}</p>
+        {ansicht === "kanban" ? (
+          <>
+            {eskaliert.length > 0 && (
+              <div className="mb-6 rounded-xl border border-rose-300 bg-rose-50 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-rose-700">
+                  <AlertTriangle size={16} />
+                  Eskaliert — benötigt manuelle Bearbeitung ({eskaliert.length})
                 </div>
-
-                <div className="flex flex-col gap-3">
-                  {karten.map((fall) => (
+                <div className="flex flex-wrap gap-3">
+                  {eskaliert.map((fall) => (
                     <FallKarte
                       key={fall.id}
                       fall={fall}
@@ -275,19 +305,63 @@ export default function Board() {
                       offeneFreigaben={offeneFreigabenProFall.get(fall.id) ?? 0}
                       onClick={() => navigate(`/faelle/${fall.id}`)}
                       ausgewaehlt={fall.id === geoeffneterFallId}
-                      variante={spalte.aktion ? "aktion" : "normal"}
+                      variante="eskaliert"
                     />
                   ))}
-                  {karten.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-300">
-                      leer
-                    </div>
-                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {SPALTEN.map((spalte) => {
+                const karten = gefiltert.filter((f) => spalte.status.includes(f.status));
+                const stil = SPALTEN_STYLE[spalte.farbe];
+                return (
+                  <div key={spalte.titel} className="flex min-w-0 flex-col">
+                    <div className={`mb-3 rounded-lg border px-3 py-2.5 ${stil.rahmen} ${stil.hintergrund}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-semibold ${stil.titel}`}>{spalte.titel}</span>
+                        <span
+                          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold ${stil.badge}`}
+                        >
+                          {karten.length}
+                        </span>
+                      </div>
+                      <p className={`mt-0.5 text-xs ${stil.beschreibung}`}>{spalte.beschreibung}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      {karten.map((fall) => (
+                        <FallKarte
+                          key={fall.id}
+                          fall={fall}
+                          objekt={fall.objekt_id ? objektNachId.get(fall.objekt_id) : undefined}
+                          offeneFreigaben={offeneFreigabenProFall.get(fall.id) ?? 0}
+                          onClick={() => navigate(`/faelle/${fall.id}`)}
+                          ausgewaehlt={fall.id === geoeffneterFallId}
+                          variante={spalte.aktion ? "aktion" : "normal"}
+                        />
+                      ))}
+                      {karten.length === 0 && (
+                        <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-300">
+                          leer
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <FallListe
+            faelle={gefiltert}
+            objektNachId={objektNachId}
+            offeneFreigabenProFall={offeneFreigabenProFall}
+            onOeffnen={(id) => navigate(`/faelle/${id}`)}
+            geoeffneterFallId={geoeffneterFallId}
+          />
+        )}
       </div>
 
       {panelOffen && (
@@ -367,5 +441,91 @@ function FallKarte({
       </div>
       <p className="sr-only">{STATUS_LABEL[fall.status]}</p>
     </button>
+  );
+}
+
+// Listenansicht — Alternative zum Kanban-Board, angelehnt an eine
+// Pipeline-Tabelle (z. B. Google Sheets): ein Fall = eine Zeile, statt in
+// Spalten gruppiert chronologisch (Erstellungsdatum, älteste Fälle zuerst)
+// sortiert. Nutzt dasselbe Farbsystem wie überall sonst in der App
+// (FallStatusBadge, siehe components/StatusBadge.tsx) statt einer
+// eigenen Farbzuordnung.
+function FallListe({
+  faelle,
+  objektNachId,
+  offeneFreigabenProFall,
+  onOeffnen,
+  geoeffneterFallId,
+}: {
+  faelle: Fall[];
+  objektNachId: Map<number, Objekt>;
+  offeneFreigabenProFall: Map<number, number>;
+  onOeffnen: (fallId: number) => void;
+  geoeffneterFallId: number | null;
+}) {
+  const sortiert = useMemo(
+    () =>
+      [...faelle].sort(
+        (a, b) => alsUtcDatum(a.erstellt_am).getTime() - alsUtcDatum(b.erstellt_am).getTime(),
+      ),
+    [faelle],
+  );
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="hidden grid-cols-[9rem_1fr_8rem_7rem_5rem] items-center gap-4 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:grid">
+        <span>Status</span>
+        <span>Fall</span>
+        <span>Gewerk</span>
+        <span>Erstellt</span>
+        <span className="text-right">Freigabe</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {sortiert.map((fall) => {
+          const objekt = fall.objekt_id ? objektNachId.get(fall.objekt_id) : undefined;
+          const offen = offeneFreigabenProFall.get(fall.id) ?? 0;
+          const ausgewaehlt = fall.id === geoeffneterFallId;
+          return (
+            <button
+              key={fall.id}
+              onClick={() => onOeffnen(fall.id)}
+              aria-current={ausgewaehlt ? "true" : undefined}
+              className={`grid w-full grid-cols-1 items-start gap-1.5 px-4 py-3 text-left text-sm transition-colors hover:bg-slate-50 sm:grid-cols-[9rem_1fr_8rem_7rem_5rem] sm:items-center sm:gap-4 sm:py-2.5 ${
+                ausgewaehlt ? "bg-indigo-50" : ""
+              }`}
+            >
+              <span>
+                <FallStatusBadge status={fall.status} />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-slate-900">{fall.betreff}</span>
+                {objekt && (
+                  <span className="flex items-center gap-1 truncate text-xs text-slate-400">
+                    <Building2 size={11} className="shrink-0" /> {objekt.bezeichnung}
+                  </span>
+                )}
+              </span>
+              <span className="flex items-center gap-1 text-xs text-slate-500 sm:text-sm">
+                {fall.gewerk && <Wrench size={11} className="shrink-0 text-slate-400" />}
+                {fall.gewerk ?? "—"}
+              </span>
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <Clock size={11} className="shrink-0" /> {zeitVor(fall.erstellt_am)}
+              </span>
+              <span className="flex sm:justify-end">
+                {offen > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">
+                    <ShieldAlert size={11} /> Prüfen
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+        {sortiert.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm text-slate-300">Keine Fälle gefunden.</p>
+        )}
+      </div>
+    </div>
   );
 }

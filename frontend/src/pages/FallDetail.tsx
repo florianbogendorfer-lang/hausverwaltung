@@ -260,7 +260,7 @@ export default function FallDetail() {
                 </span>
                 <NachrichtStatusBadge status={n.status} />
               </div>
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 break-words text-slate-500">
                 {n.von} → {n.an}
               </p>
               <p className="mt-1 font-medium text-slate-800">{n.betreff}</p>
@@ -445,9 +445,9 @@ function InfoKarte({
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
         <Icon size={15} />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
-        <p className="mt-0.5 text-sm text-slate-800">{wert}</p>
+        <p className="mt-0.5 break-words text-sm text-slate-800">{wert}</p>
       </div>
     </div>
   );
