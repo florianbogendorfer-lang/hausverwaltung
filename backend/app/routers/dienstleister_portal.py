@@ -39,8 +39,8 @@ _STATUS_TEXT: dict[FallStatus, str] = {
     FallStatus.wartet_auf_freigabe: "Dieser Auftrag ist noch nicht freigegeben — bitte warten Sie auf die Beauftragung per E-Mail.",
     FallStatus.dienstleister_beauftragt: "Bitte bestätigen Sie einen Termin für den Vor-Ort-Besuch.",
     FallStatus.termin_bestaetigt: "Termin bestätigt. Bitte melden Sie sich, sobald die Arbeit erledigt ist.",
-    FallStatus.arbeit_erledigt: "Als erledigt gemeldet — vielen Dank.",
-    FallStatus.rechnung_erfasst: "Dieser Auftrag ist bereits abgeschlossen — vielen Dank für die Erledigung.",
+    FallStatus.arbeit_erledigt: "Als erledigt gemeldet — bitte reichen Sie noch die Rechnung ein.",
+    FallStatus.rechnung_erfasst: "Rechnung eingereicht — vielen Dank. Die Hausverwaltung schließt den Auftrag ab.",
     FallStatus.abgeschlossen: "Dieser Auftrag ist bereits abgeschlossen — vielen Dank für die Erledigung.",
     FallStatus.eskaliert: "Dieser Fall wird gerade persönlich von der Hausverwaltung bearbeitet — bitte kontaktieren Sie uns direkt.",
     FallStatus.abgebrochen: "Dieser Auftrag wurde storniert.",
@@ -56,6 +56,8 @@ class DienstleisterPortalAnsicht(BaseModel):
     melder_name: str | None
     melder_telefon: str | None
     termin_am: datetime | None
+    rechnung_betrag: float | None
+    rechnung_nummer: str | None
 
 
 class TerminEingabe(BaseModel):
@@ -73,6 +75,27 @@ class TerminEingabe(BaseModel):
         if wert.tzinfo is not None:
             return wert.astimezone(timezone.utc).replace(tzinfo=None)
         return wert
+
+
+class RechnungEingabe(BaseModel):
+    betrag: float
+    rechnungsnummer: str | None = None
+
+    @field_validator("betrag")
+    @classmethod
+    def _betrag_plausibel(cls, wert: float) -> float:
+        if wert <= 0:
+            raise ValueError("Der Rechnungsbetrag muss größer als 0 sein.")
+        if wert > 1_000_000:
+            raise ValueError("Der Rechnungsbetrag ist unplausibel hoch.")
+        return wert
+
+    @field_validator("rechnungsnummer")
+    @classmethod
+    def _rechnungsnummer_laenge_pruefen(cls, wert: str | None) -> str | None:
+        if wert is not None and len(wert) > 100:
+            raise ValueError("Die Rechnungsnummer ist zu lang (max. 100 Zeichen).")
+        return wert or None
 
 
 def _fall_laden(session: Session, zugriffstoken: str) -> Fall:
@@ -94,6 +117,8 @@ def _ansicht(session: Session, fall: Fall) -> DienstleisterPortalAnsicht:
         melder_name=kontakt.name if kontakt else None,
         melder_telefon=kontakt.telefon if kontakt else None,
         termin_am=fall.termin_am,
+        rechnung_betrag=fall.rechnung_betrag,
+        rechnung_nummer=fall.rechnung_nummer,
     )
 
 
@@ -167,4 +192,40 @@ def als_erledigt_melden(
     session.commit()
     session.refresh(fall)
     log_aktion(session, fall.id, Akteur.dienstleister, "fall:arbeit_erledigt", {})
+    return _ansicht(session, fall)
+
+
+@router.post(
+    "/{zugriffstoken}/rechnung",
+    response_model=DienstleisterPortalAnsicht,
+    dependencies=[Depends(dienstleister_portal_rate_limiter)],
+)
+def rechnung_einreichen(
+    zugriffstoken: str, eingabe: RechnungEingabe, session: Session = Depends(get_session)
+) -> DienstleisterPortalAnsicht:
+    # Letzter Schritt des Dienstleisters im Portal — strukturierte Eingabe
+    # statt Rechnung per Freitext-Mail-Anhang, aus denselben Gründen wie
+    # Termin/Erledigt-Meldung (siehe Modul-Docstring). Erst danach kann der
+    # Bearbeiter den Fall im Operator-UI abschließen (app/routers/faelle.py).
+    fall = _fall_laden(session, zugriffstoken)
+    if fall.status != FallStatus.arbeit_erledigt:
+        raise HTTPException(
+            status_code=409,
+            detail="Für diesen Fall kann aktuell keine Rechnung eingereicht werden.",
+        )
+
+    fall.rechnung_betrag = eingabe.betrag
+    fall.rechnung_nummer = eingabe.rechnungsnummer
+    fall.status = FallStatus.rechnung_erfasst
+    fall.geaendert_am = datetime.utcnow()
+    session.add(fall)
+    session.commit()
+    session.refresh(fall)
+    log_aktion(
+        session,
+        fall.id,
+        Akteur.dienstleister,
+        "fall:rechnung_erfasst",
+        {"betrag": eingabe.betrag, "rechnungsnummer": eingabe.rechnungsnummer},
+    )
     return _ansicht(session, fall)

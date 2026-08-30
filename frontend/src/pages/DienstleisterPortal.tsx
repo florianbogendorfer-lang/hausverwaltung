@@ -1,4 +1,4 @@
-import { AlertCircle, Building2, Calendar, CheckCircle2, User, Wrench } from "lucide-react";
+import { AlertCircle, Building2, Calendar, CheckCircle2, Receipt, User, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, ApiFehler } from "../api";
@@ -16,6 +16,8 @@ export default function DienstleisterPortal() {
   const [ansicht, setAnsicht] = useState<DienstleisterPortalAnsicht | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [terminEingabe, setTerminEingabe] = useState("");
+  const [betragEingabe, setBetragEingabe] = useState("");
+  const [rechnungsnummerEingabe, setRechnungsnummerEingabe] = useState("");
   const [aktionFehler, setAktionFehler] = useState<string | null>(null);
   const [wirdGesendet, setWirdGesendet] = useState(false);
 
@@ -60,6 +62,24 @@ export default function DienstleisterPortal() {
       laden();
     } catch (e) {
       setAktionFehler(e instanceof ApiFehler ? e.message : "Konnte nicht als erledigt gemeldet werden.");
+    } finally {
+      setWirdGesendet(false);
+    }
+  }
+
+  async function rechnungEinreichen(e: React.FormEvent) {
+    e.preventDefault();
+    if (!zugriffstoken || !betragEingabe) return;
+    setWirdGesendet(true);
+    setAktionFehler(null);
+    try {
+      await api.post(`/dienstleister-portal/${zugriffstoken}/rechnung`, {
+        betrag: Number(betragEingabe.replace(",", ".")),
+        rechnungsnummer: rechnungsnummerEingabe || null,
+      });
+      laden();
+    } catch (e) {
+      setAktionFehler(e instanceof ApiFehler ? e.message : "Rechnung konnte nicht eingereicht werden.");
     } finally {
       setWirdGesendet(false);
     }
@@ -123,6 +143,13 @@ export default function DienstleisterPortal() {
                   {alsUtcDatum(ansicht.termin_am).toLocaleString("de-AT")}
                 </p>
               )}
+              {ansicht.rechnung_betrag != null && (
+                <p className="flex items-center gap-2">
+                  <Receipt size={14} className="shrink-0 text-slate-400" /> Rechnung:{" "}
+                  {ansicht.rechnung_betrag.toFixed(2)} €
+                  {ansicht.rechnung_nummer && <> ({ansicht.rechnung_nummer})</>}
+                </p>
+              )}
             </div>
 
             {aktionFehler && (
@@ -169,6 +196,49 @@ export default function DienstleisterPortal() {
             )}
 
             {ansicht.status === "ARBEIT_ERLEDIGT" && (
+              <form
+                onSubmit={rechnungEinreichen}
+                className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <p className="text-sm text-slate-600">
+                  Vielen Dank für die Erledigung — bitte reichen Sie noch die Rechnung ein.
+                </p>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Rechnungsbetrag (€)
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={betragEingabe}
+                    onChange={(e) => setBetragEingabe(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Rechnungsnummer (optional)
+                  </span>
+                  <input
+                    type="text"
+                    value={rechnungsnummerEingabe}
+                    onChange={(e) => setRechnungsnummerEingabe(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={wirdGesendet}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  <Receipt size={15} /> Rechnung einreichen
+                </button>
+              </form>
+            )}
+
+            {(ansicht.status === "RECHNUNG_ERFASST" || ansicht.status === "ABGESCHLOSSEN") && (
               <p className="mt-6 flex items-center gap-1.5 text-sm font-medium text-emerald-700">
                 <CheckCircle2 size={16} /> Vielen Dank — die Hausverwaltung wurde informiert.
               </p>

@@ -29,6 +29,8 @@ const BASIS_ANSICHT: DienstleisterPortalAnsicht = {
   melder_name: "Erika Musterfrau",
   melder_telefon: "0664 1234567",
   termin_am: null,
+  rechnung_betrag: null,
+  rechnung_nummer: null,
 };
 
 describe("DienstleisterPortal", () => {
@@ -82,7 +84,7 @@ describe("DienstleisterPortal", () => {
     expect(await screen.findByRole("button", { name: /erledigt melden/ })).toBeInTheDocument();
   });
 
-  it("meldet die Arbeit als erledigt, wenn ein Termin bestätigt ist", async () => {
+  it("meldet die Arbeit als erledigt und zeigt danach das Rechnungsformular", async () => {
     getMock.mockResolvedValueOnce({
       ...BASIS_ANSICHT,
       status: "TERMIN_BESTAETIGT",
@@ -92,7 +94,7 @@ describe("DienstleisterPortal", () => {
     getMock.mockResolvedValueOnce({
       ...BASIS_ANSICHT,
       status: "ARBEIT_ERLEDIGT",
-      status_text: "Als erledigt gemeldet — vielen Dank.",
+      status_text: "Als erledigt gemeldet — bitte reichen Sie noch die Rechnung ein.",
       termin_am: "2026-09-05T10:30:00",
     });
     rendern("mein-token");
@@ -103,15 +105,41 @@ describe("DienstleisterPortal", () => {
     await waitFor(() =>
       expect(postMock).toHaveBeenCalledWith("/dienstleister-portal/mein-token/erledigt"),
     );
-    expect(await screen.findByText(/vielen Dank/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Rechnung einreichen/ })).toBeInTheDocument();
   });
 
-  it("zeigt keine Formulare mehr, wenn die Arbeit bereits erledigt ist", async () => {
-    getMock.mockResolvedValue({ ...BASIS_ANSICHT, status: "ARBEIT_ERLEDIGT" });
+  it("sendet die eingegebene Rechnung bei ARBEIT_ERLEDIGT", async () => {
+    getMock.mockResolvedValueOnce({ ...BASIS_ANSICHT, status: "ARBEIT_ERLEDIGT" }).mockResolvedValueOnce({
+      ...BASIS_ANSICHT,
+      status: "RECHNUNG_ERFASST",
+      status_text: "Rechnung eingereicht — vielen Dank.",
+      rechnung_betrag: 249.5,
+      rechnung_nummer: "RE-2026-042",
+    });
+    postMock.mockResolvedValue(undefined);
+    rendern("mein-token");
+
+    await screen.findByRole("button", { name: /Rechnung einreichen/ });
+    fireEvent.change(screen.getByLabelText(/Rechnungsbetrag/), { target: { value: "249.50" } });
+    fireEvent.change(screen.getByLabelText(/Rechnungsnummer/), { target: { value: "RE-2026-042" } });
+    fireEvent.click(screen.getByRole("button", { name: /Rechnung einreichen/ }));
+
+    await waitFor(() =>
+      expect(postMock).toHaveBeenCalledWith("/dienstleister-portal/mein-token/rechnung", {
+        betrag: 249.5,
+        rechnungsnummer: "RE-2026-042",
+      }),
+    );
+    expect(await screen.findByText(/Hausverwaltung wurde informiert/)).toBeInTheDocument();
+  });
+
+  it("zeigt keine Formulare mehr, wenn die Rechnung bereits erfasst ist", async () => {
+    getMock.mockResolvedValue({ ...BASIS_ANSICHT, status: "RECHNUNG_ERFASST", rechnung_betrag: 100 });
     rendern();
 
     await screen.findByText("Türschloss defekt");
     expect(screen.queryByRole("button", { name: /Termin bestätigen/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /erledigt melden/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Rechnung einreichen/ })).not.toBeInTheDocument();
   });
 });

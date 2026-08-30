@@ -86,6 +86,8 @@ export interface Fall {
   status: FallStatus;
   betreff: string;
   termin_am?: string | null;
+  rechnung_betrag?: number | null;
+  rechnung_nummer?: string | null;
   zusammenfassung?: string | null;
   konfidenz?: number | null;
   erstellt_am: string;
@@ -160,6 +162,8 @@ export interface DienstleisterPortalAnsicht {
   melder_name: string | null;
   melder_telefon: string | null;
   termin_am: string | null;
+  rechnung_betrag: number | null;
+  rechnung_nummer: string | null;
 }
 
 export interface Freigabe {

@@ -80,6 +80,12 @@ class Fall(SQLModel, table=True):
     # bestätigter Vor-Ort-Termin — bewusst kein separates Termin-Modell,
     # ein Fall hat im Prototyp höchstens einen aktiven Termin gleichzeitig.
     termin_am: Optional[datetime] = None
+    # Vom Dienstleister über das Portal eingereichte Rechnungsdaten
+    # (`/dienstleister-portal/{token}/rechnung`, nur im Status
+    # ARBEIT_ERLEDIGT möglich) — Voraussetzung dafür, dass der Bearbeiter
+    # den Fall im Operator-UI abschließen kann (siehe app/routers/faelle.py).
+    rechnung_betrag: Optional[float] = None
+    rechnung_nummer: Optional[str] = None
     zusammenfassung: Optional[str] = None
     konfidenz: Optional[float] = None
     erstellt_am: datetime = Field(default_factory=datetime.utcnow)

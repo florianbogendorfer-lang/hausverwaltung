@@ -69,3 +69,27 @@ def test_manuelle_eskalation_aus_jedem_status_erlaubt():
 def test_manuelle_zuordnung_unbekannter_fall_gibt_404():
     response = client.patch("/api/faelle/99999", json={"objekt_id": 1})
     assert response.status_code == 404
+
+
+def test_abschluss_ab_arbeit_erledigt_erlaubt():
+    fall_id = _erzeuge_fall(status=FallStatus.arbeit_erledigt)
+    response = client.patch(f"/api/faelle/{fall_id}", json={"status": "ABGESCHLOSSEN"})
+    assert response.status_code == 200
+    assert response.json()["status"] == FallStatus.abgeschlossen.value
+
+
+def test_abschluss_ab_rechnung_erfasst_erlaubt():
+    fall_id = _erzeuge_fall(status=FallStatus.rechnung_erfasst)
+    response = client.patch(f"/api/faelle/{fall_id}", json={"status": "ABGESCHLOSSEN"})
+    assert response.status_code == 200
+    assert response.json()["status"] == FallStatus.abgeschlossen.value
+
+    aktionen = client.get(f"/api/faelle/{fall_id}/aktionen").json()
+    letzte = [a for a in aktionen if a["aktionsart"] == "fall:manuell_aktualisiert"][-1]
+    assert letzte["details"]["status"] == FallStatus.abgeschlossen.value
+
+
+def test_abschluss_ausserhalb_erledigt_rechnung_wird_abgelehnt():
+    fall_id = _erzeuge_fall(status=FallStatus.termin_bestaetigt)
+    response = client.patch(f"/api/faelle/{fall_id}", json={"status": "ABGESCHLOSSEN"})
+    assert response.status_code == 400

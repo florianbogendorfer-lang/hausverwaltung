@@ -11,6 +11,7 @@ import {
   Info,
   Pencil,
   PlayCircle,
+  Receipt,
   Sparkles,
   Trash2,
   UserRound,
@@ -202,8 +203,10 @@ export default function FallDetail() {
         status={fall.status}
         eskalationsgrund={eskalationsgrund}
         terminAm={fall.termin_am}
+        rechnungBetrag={fall.rechnung_betrag}
+        rechnungNummer={fall.rechnung_nummer}
         fallId={fall.id}
-        onEskaliert={laden}
+        aufAktualisiert={laden}
       />
 
       {offeneFreigabe && (
@@ -299,14 +302,14 @@ const HANDLUNGSANWEISUNG: Record<
     icon: Clock,
   },
   ARBEIT_ERLEDIGT: {
-    text: "Arbeit ist erledigt — wartet auf die Rechnung. Keine Aktion nötig.",
+    text: "Arbeit ist erledigt — wartet auf die Rechnung vom Dienstleister über das Terminportal.",
     ton: "indigo",
     icon: Clock,
   },
   RECHNUNG_ERFASST: {
-    text: "Rechnung ist erfasst — Fall wird abgeschlossen. Keine Aktion nötig.",
-    ton: "indigo",
-    icon: Clock,
+    text: "Aktion nötig — Rechnung ist eingegangen, bitte prüfen und Fall abschließen.",
+    ton: "amber",
+    icon: AlertTriangle,
   },
   ABGESCHLOSSEN: { text: "Fall ist abgeschlossen.", ton: "emerald", icon: CheckCircle2 },
   ESKALIERT: { text: "Eskaliert — bitte manuell übernehmen.", ton: "rose", icon: AlertTriangle },
@@ -325,16 +328,21 @@ function HandlungsanweisungBanner({
   status,
   eskalationsgrund,
   terminAm,
+  rechnungBetrag,
+  rechnungNummer,
   fallId,
-  onEskaliert,
+  aufAktualisiert,
 }: {
   status: FallStatus;
   eskalationsgrund: string | null;
   terminAm?: string | null;
+  rechnungBetrag?: number | null;
+  rechnungNummer?: string | null;
   fallId: number;
-  onEskaliert: () => void | Promise<void>;
+  aufAktualisiert: () => void | Promise<void>;
 }) {
   const [wirdEskaliert, setWirdEskaliert] = useState(false);
+  const [wirdAbgeschlossen, setWirdAbgeschlossen] = useState(false);
   const { text, ton, icon: Icon } = HANDLUNGSANWEISUNG[status];
   const grundOhneEndpunkt = eskalationsgrund?.replace(/\.+$/, "");
   const anzeigeText =
@@ -342,7 +350,28 @@ function HandlungsanweisungBanner({
       ? `Eskaliert — ${grundOhneEndpunkt}. Bitte manuell übernehmen.`
       : status === "TERMIN_BESTAETIGT" && terminAm
         ? `${text} Termin: ${alsUtcDatum(terminAm).toLocaleString("de-AT")}.`
-        : text;
+        : status === "RECHNUNG_ERFASST" && rechnungBetrag != null
+          ? `${text} Betrag: ${rechnungBetrag.toFixed(2)} €${
+              rechnungNummer ? ` (Rechnungsnr. ${rechnungNummer})` : ""
+            }.`
+          : text;
+
+  // Abschluss ist bewusst eine manuelle Bearbeiter-Entscheidung (HITL) statt
+  // eines Automatismus — es gibt keinen Code-Pfad, der einen Fall von sich
+  // aus auf ABGESCHLOSSEN setzt (siehe app/routers/faelle.py). Ab
+  // ARBEIT_ERLEDIGT bereits möglich (falls keine Rechnung nötig/erwartet
+  // wird), ab RECHNUNG_ERFASST der reguläre Weg nach Prüfung.
+  const kannAbschliessen = status === "ARBEIT_ERLEDIGT" || status === "RECHNUNG_ERFASST";
+
+  async function abschliessen() {
+    setWirdAbgeschlossen(true);
+    try {
+      await api.patch(`/faelle/${fallId}`, { status: "ABGESCHLOSSEN" });
+      await aufAktualisiert();
+    } finally {
+      setWirdAbgeschlossen(false);
+    }
+  }
 
   // Notausstieg für Fälle, die scheinbar "hängen" — der Agent-Loop läuft
   // synchron in der Request, die den Fall angelegt hat, und wird bei
@@ -359,7 +388,7 @@ function HandlungsanweisungBanner({
     setWirdEskaliert(true);
     try {
       await api.patch(`/faelle/${fallId}`, { status: "ESKALIERT" });
-      await onEskaliert();
+      await aufAktualisiert();
     } finally {
       setWirdEskaliert(false);
     }
@@ -369,16 +398,35 @@ function HandlungsanweisungBanner({
     <div className={`mb-6 flex items-start gap-3 rounded-xl border p-4 ${BANNER_STYLE[ton]}`}>
       <Icon size={18} className="mt-0.5 shrink-0" />
       <p className="flex-1 text-sm font-medium">{anzeigeText}</p>
-      {kannManuellEskalierenLassen && (
-        <button
-          onClick={eskalieren}
-          disabled={wirdEskaliert}
-          className="shrink-0 rounded-lg border border-current/20 px-2.5 py-1 text-xs font-medium underline decoration-dotted underline-offset-2 hover:bg-black/5 disabled:opacity-50"
-          title="Falls dieser Fall verdächtig lange in diesem Status steht: manuell zur Bearbeitung eskalieren"
-        >
-          Wirkt hängengeblieben? Manuell eskalieren
-        </button>
-      )}
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        {kannAbschliessen && (
+          <button
+            onClick={abschliessen}
+            disabled={wirdAbgeschlossen}
+            className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            title={
+              status === "ARBEIT_ERLEDIGT"
+                ? "Fall ohne (weitere) Rechnungsprüfung abschließen"
+                : "Rechnung geprüft — Fall abschließen"
+            }
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <CheckCircle2 size={13} />
+              {status === "ARBEIT_ERLEDIGT" ? "Ohne Rechnung abschließen" : "Fall abschließen"}
+            </span>
+          </button>
+        )}
+        {kannManuellEskalierenLassen && (
+          <button
+            onClick={eskalieren}
+            disabled={wirdEskaliert}
+            className="rounded-lg border border-current/20 px-2.5 py-1 text-xs font-medium underline decoration-dotted underline-offset-2 hover:bg-black/5 disabled:opacity-50"
+            title="Falls dieser Fall verdächtig lange in diesem Status steht: manuell zur Bearbeitung eskalieren"
+          >
+            Wirkt hängengeblieben? Manuell eskalieren
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -476,7 +524,7 @@ function ManuelleZuordnung({
   if (!bearbeiten) {
     return (
       <div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <InfoKarte
             icon={Building2}
             titel="Objekt"
@@ -491,6 +539,15 @@ function ManuelleZuordnung({
             icon={Wrench}
             titel="Dienstleister"
             wert={dienstleister ? `${dienstleister.name} (${dienstleister.gewerk})` : "noch nicht ermittelt"}
+          />
+          <InfoKarte
+            icon={Receipt}
+            titel="Rechnung"
+            wert={
+              fall.rechnung_betrag != null
+                ? `${fall.rechnung_betrag.toFixed(2)} €${fall.rechnung_nummer ? ` (${fall.rechnung_nummer})` : ""}`
+                : "noch nicht eingereicht"
+            }
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -675,7 +732,7 @@ const PHASE_STYLE: Record<Trace["phase"], string> = {
 };
 
 function TimelineZeile({ eintrag }: { eintrag: TimelineEintrag }) {
-  const zeit = alsUtcDatum(eintrag.zeitstempel).toLocaleTimeString("de-AT");
+  const zeit = alsUtcDatum(eintrag.zeitstempel).toLocaleString("de-AT");
 
   if (eintrag.art === "trace") {
     const t = eintrag.daten;

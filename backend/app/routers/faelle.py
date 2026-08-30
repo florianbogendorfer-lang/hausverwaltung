@@ -142,21 +142,32 @@ def fall_manuell_zuordnen(
 
     if "status" in daten and daten["status"] is not None:
         ziel = daten["status"]
-        # Zwei manuell erlaubte Übergänge: (a) der bestehende Resume-Weg
-        # ESKALIERT -> EINGEORDNET, und (b) eine manuelle Eskalation aus
-        # JEDEM Status — als Notausstieg, falls ein Fall z. B. durch einen
+        # Manuell erlaubte Übergänge: (a) der bestehende Resume-Weg
+        # ESKALIERT -> EINGEORDNET, (b) eine manuelle Eskalation aus JEDEM
+        # Status — als Notausstieg, falls ein Fall z. B. durch einen
         # unerwarteten Fehler mitten im (synchronen, nicht automatisch
         # wiederholten) Agent-Loop hängen bleibt und kein automatischer
-        # Trigger mehr greift.
-        erlaubt = (fall.status == FallStatus.eskaliert and ziel == FallStatus.eingeordnet) or (
-            ziel == FallStatus.eskaliert
+        # Trigger mehr greift — und (c) der Abschluss durch den Bearbeiter,
+        # nachdem die Arbeit vor Ort erledigt (und optional die Rechnung
+        # über das Dienstleister-Portal eingereicht) wurde. Es gibt dafür
+        # bewusst KEINEN automatischen Übergang: der Abschluss eines Falls
+        # ist eine bewusste Entscheidung des Bearbeiters (HITL), keine
+        # Automatik.
+        erlaubt = (
+            (fall.status == FallStatus.eskaliert and ziel == FallStatus.eingeordnet)
+            or (ziel == FallStatus.eskaliert)
+            or (
+                fall.status in (FallStatus.arbeit_erledigt, FallStatus.rechnung_erfasst)
+                and ziel == FallStatus.abgeschlossen
+            )
         )
         if not erlaubt:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "Nur der Übergang von ESKALIERT zu EINGEORDNET oder eine manuelle "
-                    "Eskalation sind erlaubt"
+                    "Nur der Übergang von ESKALIERT zu EINGEORDNET, eine manuelle "
+                    "Eskalation oder der Abschluss ab ARBEIT_ERLEDIGT/RECHNUNG_ERFASST "
+                    "sind erlaubt"
                 ),
             )
         fall.status = ziel

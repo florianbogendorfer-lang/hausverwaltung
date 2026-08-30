@@ -126,6 +126,62 @@ def test_erledigt_melden_ohne_termin_gibt_409():
     assert antwort.status_code == 409
 
 
+def _fall_bei_arbeit_erledigt() -> dict:
+    fall = _fall_bei_dienstleister_beauftragt()
+    token = fall["dienstleister_zugriffstoken"]
+    termin = (datetime.utcnow() + timedelta(days=1)).isoformat()
+    client.post(f"/api/dienstleister-portal/{token}/termin", json={"termin_am": termin})
+    client.post(f"/api/dienstleister-portal/{token}/erledigt")
+    return client.get(f"/api/faelle/{fall['id']}").json()
+
+
+def test_rechnung_einreichen_setzt_status_und_betrag():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(
+        f"/api/dienstleister-portal/{token}/rechnung",
+        json={"betrag": 249.5, "rechnungsnummer": "RE-2026-042"},
+    )
+    assert antwort.status_code == 200
+    daten = antwort.json()
+    assert daten["status"] == FallStatus.rechnung_erfasst.value
+    assert daten["rechnung_betrag"] == 249.5
+    assert daten["rechnung_nummer"] == "RE-2026-042"
+
+    fall_response = client.get(f"/api/faelle/{fall['id']}").json()
+    assert fall_response["status"] == FallStatus.rechnung_erfasst.value
+    assert fall_response["rechnung_betrag"] == 249.5
+
+    aktionsarten = {a["aktionsart"] for a in client.get(f"/api/faelle/{fall['id']}/aktionen").json()}
+    assert "fall:rechnung_erfasst" in aktionsarten
+
+
+def test_rechnung_ohne_rechnungsnummer_ist_optional():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", json={"betrag": 100})
+    assert antwort.status_code == 200
+    assert antwort.json()["rechnung_nummer"] is None
+
+
+def test_rechnung_negativer_betrag_wird_abgelehnt():
+    fall = _fall_bei_arbeit_erledigt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", json={"betrag": -5})
+    assert antwort.status_code == 422
+
+
+def test_rechnung_vor_erledigt_meldung_gibt_409():
+    fall = _fall_bei_dienstleister_beauftragt()
+    token = fall["dienstleister_zugriffstoken"]
+
+    antwort = client.post(f"/api/dienstleister-portal/{token}/rechnung", json={"betrag": 100})
+    assert antwort.status_code == 409
+
+
 def test_kunden_zugriffstoken_und_dienstleister_zugriffstoken_sind_unterschiedlich():
     fall = _fall_bei_dienstleister_beauftragt()
     assert fall["zugriffstoken"] != fall["dienstleister_zugriffstoken"]
