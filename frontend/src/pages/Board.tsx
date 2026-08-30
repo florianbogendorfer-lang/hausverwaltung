@@ -21,11 +21,12 @@ import { alsUtcDatum } from "../zeit";
 // eigene Zeile oben, weil Eskalation „jederzeit" auftreten kann (§4.1) und
 // kein regulärer Pipeline-Schritt ist.
 //
-// Fall-Detail öffnet als Split-View statt als eigene Seite: Board ist die
-// Layout-Route für „faelle/:fallId" (siehe main.tsx), FallDetail rendert
-// über <Outlet/> rechts daneben. Auf schmalen Screens (< lg) wird daraus
-// ein Vollbild-Popup mit Schließen-Button, da ein 50/50-Split dort nicht
-// mehr sinnvoll Platz hat.
+// Fall-Detail öffnet als Vollbild-Popup statt als eigene Seite: Board ist
+// die Layout-Route für „faelle/:fallId" (siehe main.tsx), FallDetail
+// rendert über <Outlet/> in einem Overlay über dem Board, mit
+// Schließen-Button (X). Das gilt einheitlich auf allen Bildschirmgrößen
+// (kein Split-Pane mehr — der halbierte Bildschirm hat sich in der
+// Praxis als unübersichtlich erwiesen).
 
 type Spaltenfarbe = "slate" | "sky" | "amber" | "violet" | "emerald";
 
@@ -192,11 +193,10 @@ export default function Board() {
 
   return (
     <div className="flex items-start gap-6">
-      {/* Auf schmalen Screens wird die Liste vom Vollbild-Popup verdeckt
-          (siehe Panel unten) — hier ausgeblendet statt nur dahinterliegend,
-          damit sie nicht versehentlich bedienbar bleibt. Ab lg steht sie
-          als linke Hälfte der Split-View immer sichtbar daneben. */}
-      <div className={`min-w-0 flex-1 ${panelOffen ? "hidden lg:block" : ""}`}>
+      {/* Board wird vom Vollbild-Popup verdeckt (siehe Panel unten) — hier
+          ausgeblendet statt nur dahinterliegend, damit es nicht
+          versehentlich bedienbar bleibt, während das Panel offen ist. */}
+      <div className={`min-w-0 flex-1 ${panelOffen ? "hidden" : ""}`}>
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Fall-Board</h2>
@@ -248,11 +248,7 @@ export default function Board() {
           </div>
         )}
 
-        {/* Weniger Spalten nebeneinander, sobald die Detailansicht die
-            rechte Hälfte belegt — fünf Kanban-Spalten nebeneinander hätten
-            in der schmaleren linken Hälfte keinen sinnvollen Platz mehr,
-            die Fälle bleiben aber weiterhin klar nach Status gruppiert. */}
-        <div className={`grid grid-cols-1 gap-4 ${panelOffen ? "" : "sm:grid-cols-2 lg:grid-cols-5"}`}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {SPALTEN.map((spalte) => {
             const karten = gefiltert.filter((f) => spalte.status.includes(f.status));
             const stil = SPALTEN_STYLE[spalte.farbe];
@@ -295,8 +291,8 @@ export default function Board() {
       </div>
 
       {panelOffen && (
-        <div className="fixed inset-0 z-30 overflow-y-auto bg-white lg:static lg:inset-auto lg:z-auto lg:w-1/2 lg:shrink-0 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:shadow-sm">
-          <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-xl border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+        <div className="fixed inset-0 z-30 overflow-y-auto bg-white">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Falldetails
             </span>
@@ -309,7 +305,7 @@ export default function Board() {
               <X size={18} />
             </button>
           </div>
-          <div className="p-5">
+          <div className="mx-auto max-w-3xl p-5">
             <Outlet context={{ aufFallGeaendert: laden }} />
           </div>
         </div>
