@@ -26,7 +26,7 @@ from sqlmodel import Session, select
 
 from app.auth import aktueller_benutzer
 from app.config import settings
-from app.db import create_db_and_tables, engine
+from app.db import create_db_and_tables, engine, get_session
 from app.models import Dokument
 from app.routers import (
     auth,
@@ -177,7 +177,15 @@ app.include_router(benutzer.router, prefix="/api")
 
 
 @app.get("/health", tags=["system"])
-def health() -> dict[str, str]:
+def health(session: Session = Depends(get_session)) -> dict[str, str]:
+    # Prüft bewusst auch die DB-Erreichbarkeit statt nur "Prozess läuft" —
+    # ein hängender/nicht erreichbarer Postgres würde sonst als "healthy"
+    # gemeldet, obwohl praktisch jeder API-Endpunkt fehlschlägt. Das
+    # Dockerfile-HEALTHCHECK wertet einen Nicht-2xx-Status als unhealthy.
+    try:
+        session.exec(select(1))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Datenbank nicht erreichbar") from exc
     return {"status": "ok"}
 
 

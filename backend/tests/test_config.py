@@ -72,3 +72,45 @@ def test_llm_provider_mistral_ohne_mistral_key_schlaegt_fehl_bei_deaktiviertem_u
 def test_llm_provider_mistral_mit_mistral_key_ist_gueltig_bei_deaktiviertem_umschalter(monkeypatch):
     monkeypatch.setattr(config_modul, "NVIDIA_STATT_MISTRAL", False)
     Settings(llm_provider="mistral", mistral_api_key="irgendein-key")
+
+
+# _demo_fallbacks_in_produktion_warnen: kein Fail-Fast (siehe Modul-
+# Docstring, gleiche Begründung wie bei den Seed-Passwörtern), aber ein
+# unübersehbares Log-Warning, falls ein Produktions-Deploy (cookie_secure)
+# unbemerkt mit Fake-LLM bzw. simuliertem Mailversand läuft.
+
+
+def test_demo_llm_ohne_key_warnt_in_produktion(capsys):
+    Settings(cookie_secure=True, anthropic_api_key=None, llm_provider=None)
+    ausgabe = capsys.readouterr().out
+    assert "DemoLLMClient" in ausgabe
+
+
+def test_demo_llm_ohne_key_warnt_nicht_ausserhalb_produktion(capsys):
+    Settings(cookie_secure=False, anthropic_api_key=None, llm_provider=None)
+    ausgabe = capsys.readouterr().out
+    assert "DemoLLMClient" not in ausgabe
+
+
+def test_kein_demo_llm_warning_mit_anthropic_key(capsys):
+    Settings(cookie_secure=True, anthropic_api_key="irgendein-key", llm_provider=None)
+    ausgabe = capsys.readouterr().out
+    assert "DemoLLMClient" not in ausgabe
+
+
+def test_kein_demo_llm_warning_bei_explizitem_provider_demo_ist_trotzdem_gewarnt(capsys):
+    Settings(cookie_secure=True, llm_provider="demo")
+    ausgabe = capsys.readouterr().out
+    assert "DemoLLMClient" in ausgabe
+
+
+def test_smtp_nicht_konfiguriert_warnt_in_produktion(capsys):
+    Settings(cookie_secure=True, smtp_host=None)
+    ausgabe = capsys.readouterr().out
+    assert "SimulierterMailAdapter" in ausgabe
+
+
+def test_smtp_konfiguriert_warnt_nicht(capsys):
+    Settings(cookie_secure=True, smtp_host="smtp.example.test", anthropic_api_key="k")
+    ausgabe = capsys.readouterr().out
+    assert "SimulierterMailAdapter" not in ausgabe

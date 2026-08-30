@@ -417,6 +417,45 @@ dieses Repos zu prüfen, nicht code-seitig lösbar.
 
 ## Offen
 
-- Echter IMAP-Eingang (der ausgehende Kanal ist als Adapter vorbereitet,
-  siehe Phase 6 oben — der eingehende noch nicht)
 - Weitere Anliegen-Typen über „Reparaturmeldung" hinaus
+- Siehe [Production-Readiness](#production-readiness) für den aktuellen
+  Stand Richtung echten Produktivbetrieb (Monitoring, Backups,
+  horizontale Skalierung).
+
+## Production-Readiness
+
+Der aktuelle Stand ist für Einzel-Container-Betrieb mit überschaubarem
+Traffic ausgelegt (siehe z. B. `NullPool` in `backend/app/db.py`,
+In-Memory-Rate-Limiting in `backend/app/rate_limit.py`). Für echten
+Produktivbetrieb zu beachten:
+
+- **Stille Fake-Fallbacks**: Ohne `HV_ANTHROPIC_API_KEY`/`HV_LLM_PROVIDER`
+  läuft der Agent mit `DemoLLMClient` (regelbasierte Stichwortsuche statt
+  echtem LLM); ohne `HV_SMTP_HOST` wird Mailversand nur simuliert. Ist
+  `HV_COOKIE_SECURE` aktiv (Produktions-Indikator, siehe unten) und einer
+  dieser Fälle liegt vor, schreibt `backend/app/config.py` beim Start eine
+  unübersehbare `WARNUNG:`-Zeile ins Log — Deploy-Logs nach dem ersten
+  Start darauf prüfen.
+- **`/health`** prüft inzwischen auch die DB-Erreichbarkeit (nicht nur
+  „Prozess läuft") und liefert `503`, falls die Datenbank nicht erreichbar
+  ist — der Docker-`HEALTHCHECK` wertet das korrekt als unhealthy.
+- **Backups**: Kein automatisiertes Backup-Konzept im Repo. Bei Clever
+  Cloud Postgres das Backup-Feature des Add-ons aktivieren/prüfen und
+  einmal einen Restore testen, bevor echte Daten anfallen — ohne das ist
+  ein Datenverlust nicht wiederherstellbar.
+- **Migrationen**: `alembic upgrade head` läuft automatisch bei jedem
+  Containerstart (`docker-entrypoint.sh`). Bei mehreren parallelen
+  Instanzen ist das eine potenzielle Race Condition; bei einer
+  fehlschlagenden Migration gibt es aktuell kein dokumentiertes
+  Rollback-Vorgehen außer manuell `alembic downgrade` gegen die
+  Produktions-DB auszuführen (vorher Backup ziehen, siehe oben).
+- **Monitoring**: Kein Error-Tracking (Sentry o. ä.), keine Request-IDs,
+  kein strukturiertes Logging außerhalb des Security-Audit-Logs
+  (`backend/app/audit_log.py`, geht als stdout-Stream an Clever Cloud).
+- **Rate-Limiting**: In-Memory, bewusst für Single-Container gebaut — bei
+  horizontaler Skalierung (mehrere Instanzen) wird das Limit effektiv mit
+  der Instanzzahl multipliziert. Vor einer Skalierung auf Redis-basiertes
+  Rate-Limiting umstellen.
+- **Tests**: Backend-Testabdeckung ist umfangreich (~160 Tests), Frontend
+  deutlich dünner (4 Testdateien) und ohne E2E-Tests — beim Ausbau
+  priorisieren.

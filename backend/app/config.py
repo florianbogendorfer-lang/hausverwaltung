@@ -124,6 +124,21 @@ class Settings(BaseSettings):
     seed_admin_passwort: str = _SEED_ADMIN_PASSWORT_DEFAULT
     seed_user_passwort: str = _SEED_USER_PASSWORT_DEFAULT
 
+    @property
+    def demo_llm_aktiv(self) -> bool:
+        """Ob app.agent.model_router._default_client() ohne weitere Angaben
+        auf den DemoLLMClient (regelbasierte Stichwortsuche, kein echtes
+        LLM) zurückfallen würde — muss exakt dieselbe Logik wie dort
+        abbilden, siehe _demo_fallbacks_in_produktion_warnen unten."""
+        provider = (self.llm_provider or "").strip().lower()
+        if provider == "demo":
+            return True
+        if provider in ("mistral", "anthropic"):
+            # _provider_und_key_zusammen_pruefen stellt sicher, dass bei
+            # expliziter Wahl auch der zugehörige Key vorhanden ist.
+            return False
+        return not self.anthropic_api_key
+
     @model_validator(mode="after")
     def _provider_und_key_zusammen_pruefen(self) -> "Settings":
         # Fail fast beim Start statt eines kryptischen Fehlers erst beim
@@ -182,6 +197,28 @@ class Settings(BaseSettings):
                 "Wert setzen (dieses zufällige Passwort wird bei jedem Neustart "
                 "neu erzeugt, aber nur beim allerersten Seed-Lauf tatsächlich "
                 "verwendet)."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _demo_fallbacks_in_produktion_warnen(self) -> "Settings":
+        # Analog zur Passwort-Warnung oben: kein Fail-Fast (würde den
+        # Clever-Cloud-Deploy blockieren, falls ein Betreiber die Keys erst
+        # nach dem ersten Start nachträgt), aber ein unübersehbarer Hinweis
+        # im Deploy-Log — sonst geht ein Deployment unbemerkt mit
+        # Fake-LLM-Antworten bzw. ohne echten Mailversand live, ohne dass
+        # das irgendwo auffällt (kein Fehler, keine kaputte Funktion, nur
+        # stillschweigend falsches Verhalten).
+        if self.cookie_secure and self.demo_llm_aktiv:
+            print(
+                "WARNUNG: Kein echter LLM-Provider konfiguriert (HV_ANTHROPIC_API_KEY "
+                "bzw. HV_LLM_PROVIDER mit passendem Key fehlen) — der Agent läuft mit "
+                "DemoLLMClient (regelbasierte Stichwortsuche statt echtem LLM)."
+            )
+        if self.cookie_secure and not self.smtp_host:
+            print(
+                "WARNUNG: HV_SMTP_HOST ist nicht gesetzt — ausgehende Mails werden nur "
+                "simuliert (SimulierterMailAdapter) und nicht wirklich versendet."
             )
         return self
 

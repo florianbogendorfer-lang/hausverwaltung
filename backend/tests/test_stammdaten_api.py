@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.db import get_session
 from app.main import app
 from app.models import Gewerk
 
@@ -10,6 +11,33 @@ def test_health():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_health_meldet_503_wenn_datenbank_nicht_erreichbar():
+    # /health prüft bewusst auch die DB-Erreichbarkeit (nicht nur "Prozess
+    # läuft") — ein hängender Postgres soll den Docker-HEALTHCHECK als
+    # unhealthy erkennen lassen, siehe app/main.py::health. Simuliert das
+    # über eine Fake-Session statt eine echte DB abzuklemmen.
+    class KaputteSession:
+        def exec(self, *args, **kwargs):
+            raise RuntimeError("DB nicht erreichbar")
+
+    def kaputte_session():
+        yield KaputteSession()
+
+    # tests/conftest.py setzt app.dependency_overrides[get_session] global
+    # für die gesamte Suite (eine gemeinsame In-Memory-DB) — ein simples
+    # `del` würde dieses Override komplett entfernen statt es wieder-
+    # herzustellen und damit alle nachfolgenden Tests gegen eine andere
+    # (leere) Datenbank laufen lassen. Daher den ursprünglichen Override
+    # merken und danach zurücksetzen statt zu löschen.
+    urspruengliche_override = app.dependency_overrides[get_session]
+    app.dependency_overrides[get_session] = kaputte_session
+    try:
+        response = client.get("/health")
+        assert response.status_code == 503
+    finally:
+        app.dependency_overrides[get_session] = urspruengliche_override
 
 
 def test_objekte_liste():
