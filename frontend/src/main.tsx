@@ -1,5 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+// Muss vor allen anderen Imports laufen, damit Sentry (falls per
+// VITE_SENTRY_DSN aktiviert) auch Fehler aus früh geladenen Modulen fängt.
+import "./sentry";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./App.tsx";
 import { AuthProvider } from "./auth.tsx";

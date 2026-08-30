@@ -456,6 +456,17 @@ Produktivbetrieb zu beachten:
   oben). Jeder Request bekommt zusätzlich eine Request-ID
   (`app/observability.py`, Header `X-Request-Id`, auch im Security-
   Audit-Log verknüpft) zur Korrelation gleichzeitiger Requests im Log.
+  Das Frontend hat ein analoges, ebenfalls optionales Sentry-Tracking
+  (`frontend/src/sentry.ts`, fängt u. a. Rendering-Fehler in der
+  `ErrorBoundary`) — hier aber über `VITE_SENTRY_DSN`/
+  `VITE_SENTRY_ENVIRONMENT` als **Docker-Build-ARG** (`docker build
+  --build-arg VITE_SENTRY_DSN=...`, siehe `Dockerfile`), nicht als
+  normale Laufzeit-Umgebungsvariable — Vite ersetzt `import.meta.env.*`
+  bereits beim Build statisch, eine erst zur Laufzeit gesetzte Variable
+  käme zu spät. Falls die verwendete Deployment-Pipeline (z. B. Clever
+  Cloud) keine eigenen Build-ARGs erlaubt, bleibt das Frontend-Tracking
+  inaktiv — das Backend-Tracking über `HV_SENTRY_DSN` ist davon unberührt
+  und deckt bereits alle serverseitigen Fehler ab.
 - **Rate-Limiting**: In-Memory, bewusst für Single-Container gebaut — bei
   horizontaler Skalierung (mehrere Instanzen) wird das Limit effektiv mit
   der Instanzzahl multipliziert. Vor einer Skalierung auf Redis-basiertes

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { fehlerMelden } from "./sentry";
 
 // React-Best-Practice: ohne Error Boundary führt ein Rendering-Fehler
 // irgendwo im Baum zu einem komplett weißen Bildschirm ohne jede
@@ -14,6 +15,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { fehler: 
 
   componentDidCatch(fehler: Error, info: ErrorInfo) {
     console.error("Unerwarteter Rendering-Fehler:", fehler, info.componentStack);
+    fehlerMelden(fehler, { componentStack: info.componentStack ?? undefined });
   }
 
   render() {

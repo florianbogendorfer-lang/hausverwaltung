@@ -3,6 +3,16 @@
 # ---- Frontend bauen ----
 FROM node:22-slim AS frontend-build
 WORKDIR /app/frontend
+# Anders als die HV_*-Backend-Variablen (zur Laufzeit über docker-
+# entrypoint.sh/Clever Cloud gesetzt) muss Vite VITE_*-Variablen schon beim
+# Build kennen (src/sentry.ts liest import.meta.env.VITE_SENTRY_DSN, wird
+# von Vite zur Build-Zeit statisch ersetzt) — daher hier als Build-ARG statt
+# als normale Laufzeit-Umgebungsvariable. Ohne gesetzten ARG (Standardfall)
+# bleiben beide leer und Sentry im Frontend inaktiv, siehe src/sentry.ts.
+ARG VITE_SENTRY_DSN
+ARG VITE_SENTRY_ENVIRONMENT
+ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
+ENV VITE_SENTRY_ENVIRONMENT=${VITE_SENTRY_ENVIRONMENT}
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
