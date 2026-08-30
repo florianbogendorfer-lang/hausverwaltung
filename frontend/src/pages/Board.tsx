@@ -30,6 +30,18 @@ import { alsUtcDatum } from "../zeit";
 // Schließen-Button (X). Das gilt einheitlich auf allen Bildschirmgrößen
 // (kein Split-Pane mehr — der halbierte Bildschirm hat sich in der
 // Praxis als unübersichtlich erwiesen).
+//
+// Abgeschlossene/abgebrochene Fälle bleiben NICHT im Board liegen — sie
+// werden komplett herausgefiltert (siehe ARCHIVIERT_STATUS) und sind nur
+// noch über die eigene Archiv-Seite (pages/Archiv.tsx) einsehbar. Sonst
+// häufen sich hier über die Zeit beliebig viele erledigte Fälle an und
+// verdecken, was tatsächlich noch Aufmerksamkeit braucht — genau das
+// Gegenteil vom Zweck dieser Seite. Innerhalb des Boards ist zusätzlich
+// alles nach Dringlichkeit sortiert (FALL_PRIORITAET): zuerst was aktiv
+// eine Entscheidung braucht (Eskaliert, Freigabe, Rechnungsprüfung), dann
+// der Rest — je länger ein Fall in seinem aktuellen Status unverändert
+// liegt (geaendert_am), desto weiter oben, damit hängengebliebene Fälle
+// nicht in der Masse untergehen.
 
 type Spaltenfarbe = "slate" | "sky" | "amber" | "violet" | "emerald";
 
@@ -65,13 +77,33 @@ const SPALTEN: Spalte[] = [
     status: ["DIENSTLEISTER_BEAUFTRAGT", "TERMIN_BESTAETIGT", "ARBEIT_ERLEDIGT", "RECHNUNG_ERFASST"],
     farbe: "violet",
   },
-  {
-    titel: "Abgeschlossen",
-    beschreibung: "Erledigt oder abgebrochen",
-    status: ["ABGESCHLOSSEN", "ABGEBROCHEN"],
-    farbe: "emerald",
-  },
+  // Kein "Abgeschlossen"-Spalte mehr — erledigte/abgebrochene Fälle werden
+  // archiviert statt im Board zu bleiben, siehe ARCHIVIERT_STATUS unten.
 ];
+
+// Fälle in diesen Status verschwinden komplett aus dem Board (Kanban wie
+// Liste) und sind nur noch über die Archiv-Seite einsehbar.
+const ARCHIVIERT_STATUS: readonly FallStatus[] = ["ABGESCHLOSSEN", "ABGEBROCHEN"];
+
+// Dringlichkeits-Reihenfolge für die Listenansicht (und die Sortierung
+// innerhalb einer Kanban-Spalte): zuerst alles, was eine aktive
+// Entscheidung braucht (Eskalation > offene Freigabe > Rechnung prüfen),
+// dann der Rest in der Reihenfolge des normalen Bearbeitungsflusses.
+// ABGESCHLOSSEN/ABGEBROCHEN tauchen wegen ARCHIVIERT_STATUS in der Praxis
+// hier nie auf, bekommen aber trotzdem einen (niedrigsten) Wert, damit
+// FALL_PRIORITAET für jeden FallStatus vollständig bleibt.
+const FALL_PRIORITAET: Record<FallStatus, number> = {
+  ESKALIERT: 0,
+  WARTET_AUF_FREIGABE: 1,
+  RECHNUNG_ERFASST: 2,
+  ARBEIT_ERLEDIGT: 3,
+  TERMIN_BESTAETIGT: 4,
+  DIENSTLEISTER_BEAUFTRAGT: 5,
+  EINGEORDNET: 6,
+  NEU: 7,
+  ABGESCHLOSSEN: 8,
+  ABGEBROCHEN: 8,
+};
 
 const SPALTEN_STYLE: Record<
   Spaltenfarbe,
@@ -201,6 +233,7 @@ export default function Board() {
   const gefiltert = useMemo(() => {
     const suchbegriff = suche.trim().toLowerCase();
     return faelle.filter((f) => {
+      if (ARCHIVIERT_STATUS.includes(f.status)) return false;
       if (statusFilter !== "alle" && f.status !== statusFilter) return false;
       if (!suchbegriff) return true;
       const objekt = f.objekt_id ? objektNachId.get(f.objekt_id) : undefined;
@@ -211,7 +244,14 @@ export default function Board() {
     });
   }, [faelle, suche, statusFilter, objektNachId]);
 
-  const eskaliert = gefiltert.filter((f) => f.status === "ESKALIERT");
+  // Innerhalb desselben Status: je länger unverändert (geaendert_am),
+  // desto weiter oben — surfacet Fälle, die seit einer Weile in ihrem
+  // aktuellen Schritt hängen, statt dass sie zwischen frisch
+  // hereingekommenen untergehen.
+  const nachAlter = (a: Fall, b: Fall) =>
+    alsUtcDatum(a.geaendert_am).getTime() - alsUtcDatum(b.geaendert_am).getTime();
+
+  const eskaliert = gefiltert.filter((f) => f.status === "ESKALIERT").sort(nachAlter);
   const panelOffen = geoeffneterFallId != null;
 
   function schliessen() {
@@ -245,11 +285,13 @@ export default function Board() {
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             >
               <option value="alle">Alle Status</option>
-              {(Object.keys(STATUS_LABEL) as FallStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABEL[status]}
-                </option>
-              ))}
+              {(Object.keys(STATUS_LABEL) as FallStatus[])
+                .filter((status) => !ARCHIVIERT_STATUS.includes(status))
+                .map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABEL[status]}
+                  </option>
+                ))}
             </select>
             <div className="flex items-center gap-0.5 rounded-lg border border-slate-300 bg-white p-0.5 shadow-sm">
               <button
@@ -312,9 +354,9 @@ export default function Board() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {SPALTEN.map((spalte) => {
-                const karten = gefiltert.filter((f) => spalte.status.includes(f.status));
+                const karten = gefiltert.filter((f) => spalte.status.includes(f.status)).sort(nachAlter);
                 const stil = SPALTEN_STYLE[spalte.farbe];
                 return (
                   <div key={spalte.titel} className="flex min-w-0 flex-col">
@@ -446,30 +488,40 @@ function FallKarte({
 
 // Listenansicht — Alternative zum Kanban-Board, angelehnt an eine
 // Pipeline-Tabelle (z. B. Google Sheets): ein Fall = eine Zeile, statt in
-// Spalten gruppiert chronologisch (Erstellungsdatum, älteste Fälle zuerst)
-// sortiert. Nutzt dasselbe Farbsystem wie überall sonst in der App
-// (FallStatusBadge, siehe components/StatusBadge.tsx) statt einer
-// eigenen Farbzuordnung.
-function FallListe({
+// Spalten gruppiert. Standardmäßig nach Dringlichkeit sortiert
+// (FALL_PRIORITAET, dann je länger unverändert desto weiter oben) —
+// alternativ chronologisch absteigend fürs Archiv (pages/Archiv.tsx), wo
+// "dringend" keine Bedeutung mehr hat und stattdessen die zuletzt
+// abgeschlossenen Fälle oben stehen sollen. Nutzt dasselbe Farbsystem wie
+// überall sonst in der App (FallStatusBadge, siehe
+// components/StatusBadge.tsx) statt einer eigenen Farbzuordnung.
+export function FallListe({
   faelle,
   objektNachId,
   offeneFreigabenProFall,
   onOeffnen,
   geoeffneterFallId,
+  sortierung = "prioritaet",
 }: {
   faelle: Fall[];
   objektNachId: Map<number, Objekt>;
   offeneFreigabenProFall: Map<number, number>;
   onOeffnen: (fallId: number) => void;
   geoeffneterFallId: number | null;
+  sortierung?: "prioritaet" | "aktualisiert_absteigend";
 }) {
-  const sortiert = useMemo(
-    () =>
-      [...faelle].sort(
-        (a, b) => alsUtcDatum(a.erstellt_am).getTime() - alsUtcDatum(b.erstellt_am).getTime(),
-      ),
-    [faelle],
-  );
+  const sortiert = useMemo(() => {
+    if (sortierung === "aktualisiert_absteigend") {
+      return [...faelle].sort(
+        (a, b) => alsUtcDatum(b.geaendert_am).getTime() - alsUtcDatum(a.geaendert_am).getTime(),
+      );
+    }
+    return [...faelle].sort((a, b) => {
+      const prioritaetsdiff = FALL_PRIORITAET[a.status] - FALL_PRIORITAET[b.status];
+      if (prioritaetsdiff !== 0) return prioritaetsdiff;
+      return alsUtcDatum(a.geaendert_am).getTime() - alsUtcDatum(b.geaendert_am).getTime();
+    });
+  }, [faelle, sortierung]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -477,7 +529,7 @@ function FallListe({
         <span>Status</span>
         <span>Fall</span>
         <span>Gewerk</span>
-        <span>Erstellt</span>
+        <span>Zuletzt geändert</span>
         <span className="text-right">Freigabe</span>
       </div>
       <div className="divide-y divide-slate-100">
@@ -510,7 +562,7 @@ function FallListe({
                 {fall.gewerk ?? "—"}
               </span>
               <span className="flex items-center gap-1 text-xs text-slate-400">
-                <Clock size={11} className="shrink-0" /> {zeitVor(fall.erstellt_am)}
+                <Clock size={11} className="shrink-0" /> {zeitVor(fall.geaendert_am)}
               </span>
               <span className="flex sm:justify-end">
                 {offen > 0 && (

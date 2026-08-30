@@ -1,4 +1,4 @@
-import { KeyRound, LayoutGrid, LogOut, Mail, Settings2, Users } from "lucide-react";
+import { Archive, KeyRound, LayoutGrid, LogOut, Mail, Settings2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "./api";
@@ -9,6 +9,7 @@ import type { Freigabe } from "./types";
 const NAV_ITEMS = [
   { to: "/", label: "Board", ende: true, icon: LayoutGrid },
   { to: "/postfach", label: "Postfach & Outbox", icon: Mail },
+  { to: "/archiv", label: "Archiv", icon: Archive },
   { to: "/stammdaten", label: "Stammdaten", icon: Settings2 },
 ];
 

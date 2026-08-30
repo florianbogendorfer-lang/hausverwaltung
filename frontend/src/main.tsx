@@ -8,6 +8,7 @@ import App from "./App.tsx";
 import { AuthProvider } from "./auth.tsx";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import "./index.css";
+import Archiv from "./pages/Archiv.tsx";
 import Benutzer from "./pages/Benutzer.tsx";
 import Board from "./pages/Board.tsx";
 import DienstleisterPortal from "./pages/DienstleisterPortal.tsx";
@@ -41,6 +42,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/" element={<Board />}>
                 <Route path="faelle/:fallId" element={<FallDetail />} />
               </Route>
+              <Route path="archiv" element={<Archiv />} />
               <Route path="postfach" element={<Postfach />} />
               <Route path="stammdaten" element={<Stammdaten />} />
               <Route path="benutzer" element={<Benutzer />} />
