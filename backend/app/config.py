@@ -124,6 +124,14 @@ class Settings(BaseSettings):
     seed_admin_passwort: str = _SEED_ADMIN_PASSWORT_DEFAULT
     seed_user_passwort: str = _SEED_USER_PASSWORT_DEFAULT
 
+    # Fehler-Tracking (app/observability.py::init_sentry) — bewusst optional
+    # und ohne Fail-Fast-Prüfung: ein fehlender DSN ist kein Grund, den
+    # Start zu verweigern, nur ein Hinweis (siehe
+    # _demo_fallbacks_in_produktion_warnen unten), dass im Fehlerfall kein
+    # externes Tracking greift.
+    sentry_dsn: str | None = None
+    sentry_environment: str | None = None
+
     @property
     def demo_llm_aktiv(self) -> bool:
         """Ob app.agent.model_router._default_client() ohne weitere Angaben
@@ -219,6 +227,11 @@ class Settings(BaseSettings):
             print(
                 "WARNUNG: HV_SMTP_HOST ist nicht gesetzt — ausgehende Mails werden nur "
                 "simuliert (SimulierterMailAdapter) und nicht wirklich versendet."
+            )
+        if self.cookie_secure and not self.sentry_dsn:
+            print(
+                "WARNUNG: HV_SENTRY_DSN ist nicht gesetzt — unbehandelte Fehler werden "
+                "nur ins stdout-Log geschrieben, kein externes Fehler-Tracking aktiv."
             )
         return self
 

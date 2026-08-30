@@ -449,9 +449,13 @@ Produktivbetrieb zu beachten:
   fehlschlagenden Migration gibt es aktuell kein dokumentiertes
   Rollback-Vorgehen außer manuell `alembic downgrade` gegen die
   Produktions-DB auszuführen (vorher Backup ziehen, siehe oben).
-- **Monitoring**: Kein Error-Tracking (Sentry o. ä.), keine Request-IDs,
-  kein strukturiertes Logging außerhalb des Security-Audit-Logs
-  (`backend/app/audit_log.py`, geht als stdout-Stream an Clever Cloud).
+- **Monitoring**: Optionales Sentry-Error-Tracking über `HV_SENTRY_DSN`
+  (+ optional `HV_SENTRY_ENVIRONMENT`, sonst automatisch `produktion`/
+  `entwicklung` je nach `HV_COOKIE_SECURE`) — ohne DSN bleibt Sentry
+  inaktiv und es erscheint eine `WARNUNG:`-Zeile im Produktions-Log (siehe
+  oben). Jeder Request bekommt zusätzlich eine Request-ID
+  (`app/observability.py`, Header `X-Request-Id`, auch im Security-
+  Audit-Log verknüpft) zur Korrelation gleichzeitiger Requests im Log.
 - **Rate-Limiting**: In-Memory, bewusst für Single-Container gebaut — bei
   horizontaler Skalierung (mehrere Instanzen) wird das Limit effektiv mit
   der Instanzzahl multipliziert. Vor einer Skalierung auf Redis-basiertes

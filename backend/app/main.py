@@ -28,6 +28,7 @@ from app.auth import aktueller_benutzer
 from app.config import settings
 from app.db import create_db_and_tables, engine, get_session
 from app.models import Dokument
+from app.observability import init_sentry, log_unbehandelte_ausnahme, neue_request_id, request_id_var
 from app.routers import (
     auth,
     benutzer,
@@ -56,6 +57,10 @@ async def lifespan(app: FastAPI):
     get_dokumenten_index().indizieren(alle_dokumente)
     yield
 
+
+# Muss vor der FastAPI-App-Erzeugung laufen (siehe Docstring in
+# app/observability.py) — ohne HV_SENTRY_DSN ein reines No-Op.
+init_sentry()
 
 app = FastAPI(
     title="Hausverwaltungsagent (Prototyp)",
@@ -152,6 +157,27 @@ async def sicherheits_header_setzen(request: Request, call_next):
     # "immer HTTPS erzwingen" beibringen.
     if settings.cookie_secure:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
+
+
+# Request-ID zur Korrelation von Log-Zeilen über einen einzelnen Request
+# hinweg (app/observability.py) — ohne das lassen sich gleichzeitige
+# Requests im stdout-Log kaum auseinanderhalten. Übernimmt eine vom Client
+# mitgeschickte X-Request-Id (z. B. von einem vorgelagerten Load Balancer),
+# statt sie immer neu zu erzeugen, damit ein Request über mehrere Hops
+# hinweg dieselbe ID behält.
+@app.middleware("http")
+async def request_id_setzen(request: Request, call_next):
+    anfrage_id = neue_request_id(request.headers.get("X-Request-Id"))
+    token = request_id_var.set(anfrage_id)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        log_unbehandelte_ausnahme(exc)
+        raise
+    finally:
+        request_id_var.reset(token)
+    response.headers["X-Request-Id"] = anfrage_id
     return response
 
 

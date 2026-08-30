@@ -114,3 +114,21 @@ def test_smtp_konfiguriert_warnt_nicht(capsys):
     Settings(cookie_secure=True, smtp_host="smtp.example.test", anthropic_api_key="k")
     ausgabe = capsys.readouterr().out
     assert "SimulierterMailAdapter" not in ausgabe
+
+
+def test_sentry_nicht_konfiguriert_warnt_in_produktion(capsys):
+    Settings(cookie_secure=True, sentry_dsn=None)
+    ausgabe = capsys.readouterr().out
+    assert "HV_SENTRY_DSN" in ausgabe
+
+
+def test_sentry_konfiguriert_warnt_nicht(capsys):
+    Settings(cookie_secure=True, sentry_dsn="https://key@example.test/1", anthropic_api_key="k")
+    ausgabe = capsys.readouterr().out
+    assert "HV_SENTRY_DSN" not in ausgabe
+
+
+def test_sentry_warnt_nicht_ausserhalb_produktion(capsys):
+    Settings(cookie_secure=False, sentry_dsn=None)
+    ausgabe = capsys.readouterr().out
+    assert "HV_SENTRY_DSN" not in ausgabe

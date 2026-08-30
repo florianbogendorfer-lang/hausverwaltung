@@ -10,6 +10,8 @@ Prototyp-Scopes (§2.2)."""
 
 import logging
 
+from app.observability import request_id
+
 _logger = logging.getLogger("hv.audit")
 _logger.setLevel(logging.INFO)
 if not _logger.handlers:
@@ -28,4 +30,7 @@ def audit(ereignis: str, **felder: object) -> None:
     Session-Token als Feld übergeben — nur Identifikatoren (E-Mail, Rolle,
     Fall-ID etc.)."""
     detail = " ".join(f"{schluessel}={wert!r}" for schluessel, wert in felder.items())
-    _logger.info("%s %s", ereignis, detail)
+    # request_id() verknüpft diesen Audit-Eintrag mit den übrigen Log-
+    # Zeilen (app/observability.py) desselben Requests — "-" außerhalb
+    # eines Requests (z. B. Start-Skripte).
+    _logger.info("%s request_id=%s %s", ereignis, request_id(), detail)
