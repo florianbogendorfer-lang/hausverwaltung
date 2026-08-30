@@ -1,6 +1,5 @@
 import {
   AlertTriangle,
-  ArrowLeft,
   Building2,
   CheckCircle2,
   ChevronDown,
@@ -20,7 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { FreigabeKarte } from "../components/FreigabeKarte";
@@ -56,6 +55,13 @@ export default function FallDetail() {
   const { fallId } = useParams();
   const navigate = useNavigate();
   const { benutzer } = useAuth();
+  // Board (die Layout-Route für diese Split-View, siehe Board.tsx) reicht
+  // seine eigene Liste-neu-laden-Funktion durch — so bewegt sich die
+  // Karte in der Liste sofort in die richtige Spalte, wenn sich hier der
+  // Status ändert (Freigabe erteilt, Eskalation, …), statt erst nach
+  // einem manuellen Neuladen der Seite.
+  const aufFallGeaendert = useOutletContext<{ aufFallGeaendert?: () => void } | undefined>()
+    ?.aufFallGeaendert;
   const [fall, setFall] = useState<Fall | null>(null);
   const [traces, setTraces] = useState<Trace[]>([]);
   const [aktionen, setAktionen] = useState<Aktion[]>([]);
@@ -100,10 +106,11 @@ export default function FallDetail() {
           .then(setDienstleister)
           .catch(() => undefined);
       setFehler(null);
+      aufFallGeaendert?.();
     } catch (e) {
       setFehler(e instanceof Error ? e.message : "Fall konnte nicht geladen werden.");
     }
-  }, [fallId]);
+  }, [fallId, aufFallGeaendert]);
 
   useEffect(() => {
     laden();
@@ -135,14 +142,7 @@ export default function FallDetail() {
 
   return (
     <div>
-      <Link
-        to="/"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
-      >
-        <ArrowLeft size={15} /> zurück zum Board
-      </Link>
-
-      <div className="mt-3 mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{fall.betreff}</h2>
           <p className="mt-1 text-sm text-slate-500">

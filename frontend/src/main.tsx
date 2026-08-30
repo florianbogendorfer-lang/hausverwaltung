@@ -27,8 +27,17 @@ createRoot(document.getElementById("root")!).render(
             <Route path="dienstleister-portal/:zugriffstoken" element={<DienstleisterPortal />} />
             <Route path="login" element={<Login />} />
             <Route element={<App />}>
-              <Route index element={<Board />} />
-              <Route path="faelle/:fallId" element={<FallDetail />} />
+              {/* faelle/:fallId ist eine verschachtelte Route unter Board
+                  (nicht wie früher eine eigenständige Seite) — Board
+                  rendert die Liste immer und zeigt FallDetail über ein
+                  <Outlet/> als Split-View-Panel (bzw. auf schmalen
+                  Screens als Vollbild-Popup) daneben an, siehe
+                  Board.tsx. Die URL wechselt dabei ganz normal zu
+                  /faelle/:id (Deep-Link, Zurück-Button, Neuladen
+                  funktionieren weiterhin). */}
+              <Route path="/" element={<Board />}>
+                <Route path="faelle/:fallId" element={<FallDetail />} />
+              </Route>
               <Route path="postfach" element={<Postfach />} />
               <Route path="stammdaten" element={<Stammdaten />} />
               <Route path="benutzer" element={<Benutzer />} />
