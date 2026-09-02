@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- Frontend bauen ----
-FROM node:22-slim AS frontend-build
+FROM node:26-slim AS frontend-build
 WORKDIR /app/frontend
 # Anders als die HV_*-Backend-Variablen (zur Laufzeit über docker-
 # entrypoint.sh/Clever Cloud gesetzt) muss Vite VITE_*-Variablen schon beim
